@@ -1,53 +1,63 @@
 import 'dotenv/config';
-import express from 'express';
-import cors from 'cors';
-import cookieParser from 'cookie-parser';
-import path from 'path';
+import { Hono } from 'hono';
+import { cors } from 'hono/cors';
+import { serveStatic } from '@hono/node-server/serve-static';
+import { serve } from '@hono/node-server';
 
 import authRouter from './routes/auth';
 import mapRouter from './routes/map';
 import productsRouter from './routes/products';
 import uploadRouter from './routes/upload';
 
-const app = express();
-const PORT = process.env.PORT || 4000;
+const app = new Hono();
+const PORT = Number(process.env.PORT) || 4000;
 
 // ── CORS ───────────────────────────────────────────────────────────────────────
-app.use(cors({
-  origin: [
-    'http://localhost:3000', // customer app
-    'http://localhost:3001', // admin app
-    'http://127.0.0.1:3000',
-    'http://127.0.0.1:3001',
-  ],
-  credentials: true,
-}));
+app.use(
+  '*',
+  cors({
+    origin: [
+      'http://localhost:3000',
+      'http://localhost:3001',
+      'http://127.0.0.1:3000',
+      'http://127.0.0.1:3001',
+    ],
+    credentials: true,
+  })
+);
 
-// ── Body parsing ───────────────────────────────────────────────────────────────
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
-app.use(cookieParser());
-
-// ── Static uploads ─────────────────────────────────────────────────────────────
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+// ── Static uploads (for local node development) ─────────────────────────────────
+app.use('/uploads/*', serveStatic({ root: './' }));
 
 // ── API Routes ──────────────────────────────────────────────────────────────────
-app.use('/api/auth', authRouter);
-app.use('/api/map', mapRouter);
-app.use('/api/products', productsRouter);
-app.use('/api/upload', uploadRouter);
+app.route('/api/auth', authRouter);
+app.route('/api/map', mapRouter);
+app.route('/api/products', productsRouter);
+app.route('/api/upload', uploadRouter);
 
 // ── Health check ────────────────────────────────────────────────────────────────
-app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+app.get('/api/health', (c) => {
+  return c.json({
+    status: 'ok',
+    runtime: 'Hono',
+    timestamp: new Date().toISOString(),
+  });
 });
 
-// ── Start ───────────────────────────────────────────────────────────────────────
-app.listen(PORT, () => {
-  console.log(`\n🚀 StoreMap Server running on http://localhost:${PORT}`);
-  console.log(`   📦 API:     http://localhost:${PORT}/api`);
-  console.log(`   🖼  Uploads: http://localhost:${PORT}/uploads`);
-  console.log(`   💚 Health:  http://localhost:${PORT}/api/health\n`);
-});
+// ── Node Server Start (Dev / Local Node Mode) ──────────────────────────────────
+if (process.env.NODE_ENV !== 'production' || !process.env.CF_PAGES) {
+  serve(
+    {
+      fetch: app.fetch,
+      port: PORT,
+    },
+    (info) => {
+      console.log(`\n🔥 Hono Server running on http://localhost:${info.port}`);
+      console.log(`   📦 API:     http://localhost:${info.port}/api`);
+      console.log(`   🖼  Uploads: http://localhost:${info.port}/uploads`);
+      console.log(`   💚 Health:  http://localhost:${info.port}/api/health\n`);
+    }
+  );
+}
 
 export default app;

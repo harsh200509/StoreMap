@@ -1,65 +1,51 @@
-import { Router, Request, Response } from 'express';
-import multer from 'multer';
+import { Hono } from 'hono';
 import path from 'path';
 import fs from 'fs';
 import { requireAuth } from '../middleware/auth';
 
-const router = Router();
+const uploadRouter = new Hono();
 
-// Local disk fallback
-const uploadDir = path.join(__dirname, '../../uploads');
-if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, uploadDir),
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    const name = `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`;
-    cb(null, name);
-  },
-});
-
-const upload = multer({
-  storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
-  fileFilter: (_req, file, cb) => {
-    const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-    if (allowed.includes(file.mimetype)) cb(null, true);
-    else cb(new Error('Only image files are allowed'));
-  },
-});
+// Local disk fallback directory (for Node dev)
+const uploadDir = path.join(process.cwd(), 'uploads');
+if (typeof process !== 'undefined' && fs.existsSync && !fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
 
 // POST /api/upload
-router.post('/', requireAuth, upload.single('file'), async (req: Request, res: Response) => {
-  if (!req.file) {
-    res.status(400).json({ error: 'No file uploaded' });
-    return;
-  }
-
+uploadRouter.post('/', requireAuth, async (c) => {
   try {
-    // Try Vercel Blob if token is available
+    const body = await c.req.parseBody();
+    const file = body['file'];
+
+    if (!file || !(file instanceof File)) {
+      return c.json({ error: 'No file uploaded' }, 400);
+    }
+
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    const ext = path.extname(file.name) || '.jpg';
+    const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`;
+
+    // Try Vercel Blob / Cloudflare R2 if token is provided
     const blobToken = process.env.BLOB_READ_WRITE_TOKEN;
     if (blobToken) {
       const { put } = await import('@vercel/blob');
-      const blob = await put(req.file.filename, fs.createReadStream(req.file.path), {
+      const blob = await put(filename, buffer, {
         access: 'public',
         token: blobToken,
       });
-      // Clean up local temp file
-      fs.unlinkSync(req.file.path);
-      res.json({ url: blob.url });
-      return;
+      return c.json({ url: blob.url });
     }
 
-    // Fallback: serve from local /uploads
-    const url = `/uploads/${req.file.filename}`;
-    res.json({ url });
+    // Local disk fallback when running Node.js locally
+    const filePath = path.join(uploadDir, filename);
+    fs.writeFileSync(filePath, buffer);
+    const url = `/uploads/${filename}`;
+    return c.json({ url });
   } catch (err) {
     console.error('Upload error:', err);
-    // Fallback to local if Vercel fails
-    const url = `/uploads/${req.file.filename}`;
-    res.json({ url });
+    return c.json({ error: 'Failed to upload image' }, 500);
   }
 });
 
-export default router;
+export default uploadRouter;

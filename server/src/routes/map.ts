@@ -1,11 +1,11 @@
-import { Router, Request, Response } from 'express';
+import { Hono } from 'hono';
 import { prisma } from '../db/client';
 import { requireAuth } from '../middleware/auth';
 
-const router = Router();
+const mapRouter = new Hono();
 
 // GET /api/map — full map data (public, for customer app)
-router.get('/', async (_req, res: Response) => {
+mapRouter.get('/', async (c) => {
   try {
     const [sections, racks, configs] = await Promise.all([
       prisma.storeSection.findMany({ orderBy: { name: 'asc' } }),
@@ -14,99 +14,157 @@ router.get('/', async (_req, res: Response) => {
     ]);
 
     const configMap: Record<string, unknown> = {};
-    for (const c of configs) {
-      configMap[c.key] = c.value;
+    for (const conf of configs) {
+      configMap[conf.key] = conf.value;
     }
 
-    res.json({ sections, racks, config: configMap });
+    return c.json({ sections, racks, config: configMap });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to load map data' });
+    console.error('Map fetch error:', err);
+    return c.json({ error: 'Failed to load map data' }, 500);
   }
 });
 
 // PUT /api/map/sections — upsert all sections (admin)
-router.put('/sections', requireAuth, async (req: Request, res: Response) => {
-  const { sections } = req.body as { sections: Array<{ id: string; name: string; x: number; y: number; width: number; height: number; color?: string }> };
-
-  if (!Array.isArray(sections)) { res.status(400).json({ error: 'sections array required' }); return; }
-
+mapRouter.put('/sections', requireAuth, async (c) => {
   try {
+    const body = await c.req.json<{
+      sections?: Array<{
+        id: string;
+        name: string;
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+        color?: string;
+      }>;
+    }>();
+
+    const sections = body.sections;
+    if (!Array.isArray(sections)) {
+      return c.json({ error: 'sections array required' }, 400);
+    }
+
     const result = await prisma.$transaction(
       sections.map((s) =>
         prisma.storeSection.upsert({
           where: { id: s.id },
-          update: { name: s.name, x: s.x, y: s.y, width: s.width, height: s.height, color: s.color },
+          update: {
+            name: s.name,
+            x: s.x,
+            y: s.y,
+            width: s.width,
+            height: s.height,
+            color: s.color,
+          },
           create: s,
         })
       )
     );
-    res.json({ success: true, sections: result });
+    return c.json({ success: true, sections: result });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to save sections' });
+    console.error('Section upsert error:', err);
+    return c.json({ error: 'Failed to save sections' }, 500);
   }
 });
 
 // DELETE /api/map/sections/:id
-router.delete('/sections/:id', requireAuth, async (req: Request, res: Response) => {
+mapRouter.delete('/sections/:id', requireAuth, async (c) => {
+  const id = c.req.param('id');
   try {
-    await prisma.storeSection.delete({ where: { id: req.params.id } });
-    res.json({ success: true });
+    await prisma.storeSection.delete({ where: { id } });
+    return c.json({ success: true });
   } catch {
-    res.status(404).json({ error: 'Section not found' });
+    return c.json({ error: 'Section not found' }, 404);
   }
 });
 
 // PUT /api/map/racks — upsert all racks (admin)
-router.put('/racks', requireAuth, async (req: Request, res: Response) => {
-  const { racks } = req.body as { racks: Array<{ id: string; name: string; sectionId?: string; x: number; y: number; width: number; height: number; divisions?: number; orientation?: string }> };
-
-  if (!Array.isArray(racks)) { res.status(400).json({ error: 'racks array required' }); return; }
-
+mapRouter.put('/racks', requireAuth, async (c) => {
   try {
+    const body = await c.req.json<{
+      racks?: Array<{
+        id: string;
+        name: string;
+        sectionId?: string;
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+        divisions?: number;
+        orientation?: string;
+      }>;
+    }>();
+
+    const racks = body.racks;
+    if (!Array.isArray(racks)) {
+      return c.json({ error: 'racks array required' }, 400);
+    }
+
     const result = await prisma.$transaction(
       racks.map((r) =>
         prisma.storeRack.upsert({
           where: { id: r.id },
-          update: { name: r.name, sectionId: r.sectionId, x: r.x, y: r.y, width: r.width, height: r.height, divisions: r.divisions, orientation: r.orientation },
-          create: { id: r.id, name: r.name, sectionId: r.sectionId, x: r.x, y: r.y, width: r.width, height: r.height, divisions: r.divisions ?? 5, orientation: r.orientation ?? 'vertical' },
+          update: {
+            name: r.name,
+            sectionId: r.sectionId,
+            x: r.x,
+            y: r.y,
+            width: r.width,
+            height: r.height,
+            divisions: r.divisions,
+            orientation: r.orientation,
+          },
+          create: {
+            id: r.id,
+            name: r.name,
+            sectionId: r.sectionId,
+            x: r.x,
+            y: r.y,
+            width: r.width,
+            height: r.height,
+            divisions: r.divisions ?? 5,
+            orientation: r.orientation ?? 'vertical',
+          },
         })
       )
     );
-    res.json({ success: true, racks: result });
+    return c.json({ success: true, racks: result });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to save racks' });
+    console.error('Rack upsert error:', err);
+    return c.json({ error: 'Failed to save racks' }, 500);
   }
 });
 
 // DELETE /api/map/racks/:id
-router.delete('/racks/:id', requireAuth, async (req: Request, res: Response) => {
+mapRouter.delete('/racks/:id', requireAuth, async (c) => {
+  const id = c.req.param('id');
   try {
-    await prisma.storeRack.delete({ where: { id: req.params.id } });
-    res.json({ success: true });
+    await prisma.storeRack.delete({ where: { id } });
+    return c.json({ success: true });
   } catch {
-    res.status(404).json({ error: 'Rack not found' });
+    return c.json({ error: 'Rack not found' }, 404);
   }
 });
 
 // PUT /api/map/config — update store config (admin)
-router.put('/config', requireAuth, async (req: Request, res: Response) => {
-  const { key, value } = req.body;
-  if (!key) { res.status(400).json({ error: 'key required' }); return; }
-
+mapRouter.put('/config', requireAuth, async (c) => {
   try {
+    const { key, value } = await c.req.json<{ key?: string; value?: any }>();
+    if (!key) {
+      return c.json({ error: 'key required' }, 400);
+    }
+
     const result = await prisma.storeConfig.upsert({
       where: { key },
       update: { value },
       create: { key, value },
     });
-    res.json(result);
+    return c.json(result);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to update config' });
+    console.error('Config update error:', err);
+    return c.json({ error: 'Failed to update config' }, 500);
   }
 });
 
-export default router;
+export default mapRouter;

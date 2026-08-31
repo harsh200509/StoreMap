@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useAdminStore } from '../stores/adminStore';
-import { Save, Plus, Trash2, Crosshair, Map as MapIcon, Grid, Layout } from 'lucide-react';
+import { Save, Trash2, Crosshair, Map as MapIcon, Grid, Layout } from 'lucide-react';
 
 interface MapSection { id: string; name: string; x: number; y: number; width: number; height: number; color?: string; }
 interface MapRack { id: string; name: string; sectionId: string; x: number; y: number; width: number; height: number; divisions: number; orientation: string; }

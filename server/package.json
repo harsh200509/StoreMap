@@ -10,9 +10,11 @@
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
-    "build": "prisma generate && esbuild src/index.ts --bundle --platform=node --outfile=dist/index.js --external:@prisma/client --external:bcryptjs --external:jsonwebtoken --external:multer --external:cors --external:@vercel/blob"
+    "deploy": "wrangler deploy",
+    "build": "prisma generate"
   },
   "dependencies": {
+    "@hono/node-server": "^2.1.1",
     "@prisma/client": "^6.19.3",
     "@vercel/blob": "^0.27.2",
     "bcryptjs": "^2.4.3",
@@ -20,6 +22,7 @@
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
+    "hono": "^4.13.5",
     "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.1"
   },

@@ -97,8 +97,7 @@ export function StoreMap() {
     if (!pointers.current.has(e.pointerId)) return;
     
     const activePointers = Array.from(pointers.current.entries());
-    // Get the old position for the pointer that just moved
-    const oldPointer = activePointers.find(p => p[0] === e.pointerId)?.[1];
+    const oldPointer = pointers.current.get(e.pointerId);
     if (!oldPointer) return;
 
     if (pointers.current.size === 1) {
@@ -112,15 +111,17 @@ export function StoreMap() {
       }));
     } else if (pointers.current.size === 2) {
       // Pinch to zoom
-      const pts = Array.from(pointers.current.values());
-      const otherPointer = pts.find(p => p !== oldPointer)!;
+      const pts: {x: number, y: number}[] = Array.from(pointers.current.values());
+      const otherPointer = pts.find((p) => p.x !== oldPointer.x || p.y !== oldPointer.y);
       
-      const oldDist = Math.hypot(oldPointer.x - otherPointer.x, oldPointer.y - otherPointer.y);
-      const newDist = Math.hypot(e.clientX - otherPointer.x, e.clientY - otherPointer.y);
-      
-      if (oldDist > 0) {
-        const scaleDiff = newDist / oldDist;
-        setZoom(z => Math.min(Math.max(z * scaleDiff, 0.4), 4));
+      if (otherPointer) {
+        const oldDist = Math.hypot(oldPointer.x - otherPointer.x, oldPointer.y - otherPointer.y);
+        const newDist = Math.hypot(e.clientX - otherPointer.x, e.clientY - otherPointer.y);
+        
+        if (oldDist > 0) {
+          const scaleDiff = newDist / oldDist;
+          setZoom(z => Math.min(Math.max(z * scaleDiff, 0.4), 4));
+        }
       }
     }
     

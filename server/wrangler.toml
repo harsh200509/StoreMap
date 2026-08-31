@@ -1,0 +1,11 @@
+name = "storemap-api"
+main = "src/index.ts"
+compatibility_date = "2024-09-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+NODE_ENV = "production"
+# Add your environment variables or use `wrangler secret put <KEY>`:
+# DATABASE_URL = "postgres://..."
+# JWT_SECRET = "..."
+# BLOB_READ_WRITE_TOKEN = "..."

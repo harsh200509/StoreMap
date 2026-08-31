@@ -24,6 +24,7 @@ export interface Product {
   name: string;
   brand: string;
   category: Category;
+  imageUrl?: string | null;
   price: number;
   sku: string;
   status: Availability;

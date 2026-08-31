@@ -1,8 +1,5 @@
-import 'dotenv/config';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { serveStatic } from '@hono/node-server/serve-static';
-import { serve } from '@hono/node-server';
 
 import authRouter from './routes/auth';
 import mapRouter from './routes/map';
@@ -10,24 +7,17 @@ import productsRouter from './routes/products';
 import uploadRouter from './routes/upload';
 
 const app = new Hono();
-const PORT = Number(process.env.PORT) || 4000;
 
 // ── CORS ───────────────────────────────────────────────────────────────────────
 app.use(
   '*',
   cors({
-    origin: [
-      'http://localhost:3000',
-      'http://localhost:3001',
-      'http://127.0.0.1:3000',
-      'http://127.0.0.1:3001',
-    ],
+    origin: (origin) => origin || '*',
     credentials: true,
+    allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowHeaders: ['Content-Type', 'Authorization'],
   })
 );
-
-// ── Static uploads (for local node development) ─────────────────────────────────
-app.use('/uploads/*', serveStatic({ root: './' }));
 
 // ── API Routes ──────────────────────────────────────────────────────────────────
 app.route('/api/auth', authRouter);
@@ -39,25 +29,31 @@ app.route('/api/upload', uploadRouter);
 app.get('/api/health', (c) => {
   return c.json({
     status: 'ok',
-    runtime: 'Hono',
+    runtime: 'Hono on Cloudflare Workers',
     timestamp: new Date().toISOString(),
   });
 });
 
-// ── Node Server Start (Dev / Local Node Mode) ──────────────────────────────────
-if (process.env.NODE_ENV !== 'production' || !process.env.CF_PAGES) {
-  serve(
-    {
-      fetch: app.fetch,
-      port: PORT,
-    },
-    (info) => {
-      console.log(`\n🔥 Hono Server running on http://localhost:${info.port}`);
-      console.log(`   📦 API:     http://localhost:${info.port}/api`);
-      console.log(`   🖼  Uploads: http://localhost:${info.port}/uploads`);
-      console.log(`   💚 Health:  http://localhost:${info.port}/api/health\n`);
-    }
-  );
+// ── Node Server Start (for local npm run dev with tsx) ────────────────────────
+if (typeof process !== 'undefined' && process.release?.name === 'node' && !process.env.CF_WORKER) {
+  import('@hono/node-server').then(({ serve }) => {
+    import('@hono/node-server/serve-static').then(({ serveStatic }) => {
+      app.use('/uploads/*', serveStatic({ root: './' }));
+      const PORT = Number(process.env.PORT) || 4000;
+      serve(
+        {
+          fetch: app.fetch,
+          port: PORT,
+        },
+        (info) => {
+          console.log(`\n🔥 Hono Server running on http://localhost:${info.port}`);
+          console.log(`   📦 API:     http://localhost:${info.port}/api`);
+          console.log(`   🖼  Uploads: http://localhost:${info.port}/uploads`);
+          console.log(`   💚 Health:  http://localhost:${info.port}/api/health\n`);
+        }
+      );
+    });
+  });
 }
 
 export default app;

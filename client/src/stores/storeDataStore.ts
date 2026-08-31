@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { API_BASE_URL } from '../lib/api';
 
 interface MapSection {
   id: string;
@@ -41,7 +42,7 @@ export const useStoreData = create<StoreData>((set) => ({
   error: null,
   fetchData: async () => {
     try {
-      const res = await fetch('/api/map');
+      const res = await fetch(`${API_BASE_URL}/map`);
       if (!res.ok) throw new Error('Failed to fetch map data');
       const data = await res.json();
       set({

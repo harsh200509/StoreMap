@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { MapPin, Lock, User, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { useAdminStore } from '../stores/adminStore';
+import { API_BASE_URL } from '../lib/api';
 
 export default function Login() {
   const { setAdmin } = useAdminStore();
@@ -16,7 +17,7 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const res = await fetch('/api/auth/login', {
+      const res = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useAdminStore } from '../stores/adminStore';
 import { Save, Trash2, Crosshair, Map as MapIcon, Grid, Layout } from 'lucide-react';
+import { API_BASE_URL } from '../lib/api';
 
 interface MapSection { id: string; name: string; x: number; y: number; width: number; height: number; color?: string; }
 interface MapRack { id: string; name: string; sectionId: string; x: number; y: number; width: number; height: number; divisions: number; orientation: string; }
@@ -24,7 +25,7 @@ export default function MapEditor() {
   const svgRef = useRef<SVGSVGElement>(null);
 
   useEffect(() => {
-    fetch('/api/map')
+    fetch(`${API_BASE_URL}/map`)
       .then(r => r.json())
       .then(data => {
         setSections(data.sections || []);
@@ -38,22 +39,22 @@ export default function MapEditor() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await fetch('/api/map/sections', {
+      await fetch(`${API_BASE_URL}/map/sections`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ sections })
       });
-      await fetch('/api/map/racks', {
+      await fetch(`${API_BASE_URL}/map/racks`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ racks })
       });
-      await fetch('/api/map/config', {
+      await fetch(`${API_BASE_URL}/map/config`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ key: 'entrance', value: config.entrance })
       });
-      await fetch('/api/map/config', {
+      await fetch(`${API_BASE_URL}/map/config`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ key: 'checkout', value: config.checkout })

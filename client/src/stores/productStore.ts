@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { API_BASE_URL } from '../lib/api';
 import { Product } from '../types';
 
 interface ProductStore {
@@ -14,7 +15,7 @@ export const useProductStore = create<ProductStore>((set) => ({
   error: null,
   fetchProducts: async () => {
     try {
-      const res = await fetch('/api/products');
+      const res = await fetch(`${API_BASE_URL}/products`);
       if (!res.ok) throw new Error('Failed to fetch products');
       const data = await res.json();
       const mapped = data.map((p: any) => ({

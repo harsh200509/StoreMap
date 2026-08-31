@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useAdminStore } from '../stores/adminStore';
 import { Plus, Trash2, Edit2, Search, Package, Image as ImageIcon, Crosshair, X, Save, UploadCloud, Map as MapIcon } from 'lucide-react';
+import { API_BASE_URL } from '../lib/api';
 
 interface Product {
   id: string;
@@ -45,8 +46,8 @@ export default function ProductManager() {
     setLoading(true);
     try {
       const [pRes, mRes] = await Promise.all([
-        fetch('/api/products'),
-        fetch('/api/map')
+        fetch(`${API_BASE_URL}/products`),
+        fetch(`${API_BASE_URL}/map`)
       ]);
       const pData = await pRes.json();
       const mData = await mRes.json();
@@ -118,7 +119,7 @@ export default function ProductManager() {
 
       const payload = { ...editingProduct, locationX, locationY, sectionName, aisle };
 
-      const url = editingProduct.id ? `/api/products/${editingProduct.id}` : '/api/products';
+      const url = editingProduct.id ? `${API_BASE_URL}/products/${editingProduct.id}` : `${API_BASE_URL}/products`;
       const method = editingProduct.id ? 'PUT' : 'POST';
 
       const res = await fetch(url, {
@@ -144,7 +145,7 @@ export default function ProductManager() {
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this product?')) return;
     try {
-      await fetch(`/api/products/${id}`, {
+      await fetch(`${API_BASE_URL}/products/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -163,7 +164,7 @@ export default function ProductManager() {
     formData.append('file', file);
 
     try {
-      const res = await fetch('/api/upload', {
+      const res = await fetch(`${API_BASE_URL}/upload`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: formData

@@ -1,9 +1,7 @@
-import React, { useMemo, useState, useRef } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { sections, aisles, ENTRANCE, CHECKOUT } from '../../../data/store';
 import { useMapStore } from '../../../stores/mapStore';
 import { useShoppingListStore } from '../../../stores/shoppingListStore';
-import { cn } from '../../../lib/utils';
-import { ZoomIn, ZoomOut, Focus } from 'lucide-react';
 
 export function StoreMap() {
   const { selectedProduct, showAllOnMap, activeRoute, currentStopIndex, setSelectedProduct, userLocation } = useMapStore();
@@ -11,12 +9,24 @@ export function StoreMap() {
   
   const activeAisle = selectedProduct?.location.aisle;
   
-  // Pan and Zoom state
+  // Transform-based Pan and Zoom state for true mobile optimization
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const isDragging = useRef(false);
   const lastPos = useRef({ x: 0, y: 0 });
   const mapRef = useRef<HTMLDivElement>(null);
+
+  // Set initial zoom and pan based on screen size to make map instantly readable
+  useEffect(() => {
+    const isMobile = window.innerWidth < 640;
+    if (isMobile) {
+      setZoom(0.85);
+      setPan({ x: 0, y: 0 }); // Since element is centered, (0,0) will show the center of the store
+    } else {
+      setZoom(1);
+      setPan({ x: 0, y: 0 });
+    }
+  }, []);
 
   const handlePointerDown = (e: React.PointerEvent) => {
     isDragging.current = true;
@@ -30,18 +40,13 @@ export function StoreMap() {
     if (!isDragging.current) return;
     const dx = e.clientX - lastPos.current.x;
     const dy = e.clientY - lastPos.current.y;
-    // Base coordinate system is 1000x800.
-    // Calculate the scale to adjust screen pixels to SVG user units.
-    const container = mapRef.current;
-    if (container) {
-      const rect = container.getBoundingClientRect();
-      const scaleX = 1000 / rect.width;
-      const scaleY = 800 / rect.height;
-      setPan(prev => ({ 
-        x: prev.x - dx * scaleX / zoom, 
-        y: prev.y - dy * scaleY / zoom 
-      }));
-    }
+    
+    // Using CSS transforms, the pan is exactly 1:1 with screen pixels
+    setPan(prev => ({ 
+      x: prev.x + dx / zoom, 
+      y: prev.y + dy / zoom 
+    }));
+    
     lastPos.current = { x: e.clientX, y: e.clientY };
   };
 
@@ -53,64 +58,51 @@ export function StoreMap() {
   };
 
   const handleWheel = (e: React.WheelEvent) => {
+    // Only zoom if we're on desktop, to prevent weird scrolling on mobile
+    if (e.pointerType === 'touch') return;
+    
     const zoomFactor = 1.1;
     if (e.deltaY < 0) {
-      setZoom(z => Math.min(z * zoomFactor, 5));
+      setZoom(z => Math.min(z * zoomFactor, 3));
     } else {
-      setZoom(z => Math.max(z / zoomFactor, 0.5));
+      setZoom(z => Math.max(z / zoomFactor, 0.4));
     }
   };
-
-  const recenter = () => {
-    setZoom(1);
-    setPan({ x: 0, y: 0 });
-  };
-
-  const zoomIn = () => setZoom(z => Math.min(z * 1.2, 5));
-  const zoomOut = () => setZoom(z => Math.max(z / 1.2, 0.5));
 
   const listMarkers = useMemo(() => {
     if (!showAllOnMap && !activeRoute) return [];
     return items.filter(item => !collectedIds.has(item.id));
   }, [showAllOnMap, activeRoute, items, collectedIds]);
 
-  const viewWidth = 1000 / zoom;
-  const viewHeight = 800 / zoom;
-  const viewX = pan.x + (1000 - viewWidth) / 2;
-  const viewY = pan.y + (800 - viewHeight) / 2;
-
   return (
-    <div className="w-full h-full bg-gray-100 flex items-start sm:items-center justify-center p-2 sm:p-8 overflow-hidden relative touch-none">
-      
-      {/* Zoom Controls Overlay */}
-      <div className="absolute right-2 top-20 sm:right-4 sm:top-1/2 sm:-translate-y-1/2 z-40 flex flex-col gap-1 bg-white p-1 rounded-lg shadow-md border border-gray-200">
-        <button onClick={zoomIn} className="p-1.5 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors" title="Zoom In">
-          <ZoomIn className="h-4 w-4" />
-        </button>
-        <div className="w-full h-px bg-gray-200"></div>
-        <button onClick={zoomOut} className="p-1.5 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors" title="Zoom Out">
-          <ZoomOut className="h-4 w-4" />
-        </button>
-        <div className="w-full h-px bg-gray-200"></div>
-        <button onClick={recenter} className="p-1.5 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors" title="Recenter">
-          <Focus className="h-4 w-4" />
-        </button>
-      </div>
-
-      {/* Container for map with aspect ratio preservation */}
+    <div 
+      className="w-full h-full bg-gray-50 flex overflow-hidden relative touch-none cursor-grab active:cursor-grabbing"
+      ref={mapRef}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerLeave={handlePointerUp}
+      onWheel={handleWheel}
+    >
+      {/* 
+        This is the inner map container. 
+        It has a fixed size matching the SVG's coordinate system (1000x800).
+        It is perfectly centered in the wrapper via absolute positioning.
+        CSS transforms handle the panning and zooming, completely decoupling 
+        the map's aspect ratio from the device screen's aspect ratio.
+      */}
       <div 
-        ref={mapRef}
-        className="relative w-full h-full sm:max-w-5xl sm:aspect-[5/4] bg-white rounded-lg shadow-sm sm:border border-gray-200 overflow-hidden flex items-center justify-center sm:m-auto cursor-grab active:cursor-grabbing"
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerLeave={handlePointerUp}
-        onWheel={handleWheel}
+        className="absolute top-1/2 left-1/2 w-[1000px] h-[800px] bg-white sm:rounded-2xl shadow-sm border border-gray-200"
+        style={{
+          transform: `translate(calc(-50% + ${pan.x * zoom}px), calc(-50% + ${pan.y * zoom}px)) scale(${zoom})`,
+          transformOrigin: 'center',
+          transition: isDragging.current ? 'none' : 'transform 0.1s ease-out',
+          willChange: 'transform'
+        }}
       >
         <svg 
-          viewBox={`${viewX} ${viewY} ${viewWidth} ${viewHeight}`} 
-          className="w-full h-full max-h-[85vh] select-none"
-          preserveAspectRatio="xMidYMid meet"
+          viewBox="0 0 1000 800" 
+          className="w-full h-full select-none"
         >
           {/* Floor background */}
           <rect x="-1000" y="-1000" width="3000" height="3000" fill="#f8fafc" />
@@ -136,12 +128,12 @@ export function StoreMap() {
             return (
               <g 
                 key={aisle.id} 
-                className="transition-all duration-300 cursor-pointer"
+                className="transition-all duration-300"
               >
                 <rect 
                   x={aisle.x} y={aisle.y} width={aisle.width} height={aisle.height} 
-                  fill={isHighlighted ? '#bfdbfe' : '#e2e8f0'} 
-                  stroke={isHighlighted ? '#3b82f6' : '#cbd5e1'}
+                  fill={isHighlighted ? '#f3e8ff' : '#e2e8f0'} 
+                  stroke={isHighlighted ? '#9333ea' : '#cbd5e1'}
                   strokeWidth={isHighlighted ? "2" : "1"}
                   rx="4"
                 />
@@ -150,7 +142,7 @@ export function StoreMap() {
                   y={aisle.y + aisle.height / 2} 
                   textAnchor="middle" 
                   alignmentBaseline="middle"
-                  fill={isHighlighted ? '#1d4ed8' : '#64748b'} 
+                  fill={isHighlighted ? '#7e22ce' : '#64748b'} 
                   fontSize="12" 
                   fontWeight="bold"
                 >
@@ -164,7 +156,7 @@ export function StoreMap() {
           <rect x={ENTRANCE.x - 40} y={ENTRANCE.y} width="80" height="20" fill="#22c55e" rx="4" opacity="0.8" />
           <text x={ENTRANCE.x} y={ENTRANCE.y + 14} textAnchor="middle" fill="white" fontSize="12" fontWeight="bold">Entrance</text>
           
-          <rect x={CHECKOUT.x - 50} y={CHECKOUT.y} width="100" height="40" fill="#3b82f6" rx="4" opacity="0.8" />
+          <rect x={CHECKOUT.x - 50} y={CHECKOUT.y} width="100" height="40" fill="#9333ea" rx="4" opacity="0.8" />
           <text x={CHECKOUT.x} y={CHECKOUT.y + 24} textAnchor="middle" fill="white" fontSize="12" fontWeight="bold">Checkout</text>
 
           {/* Draw Route Path */}
@@ -172,7 +164,7 @@ export function StoreMap() {
             <path
               d={`M ${activeRoute.path.map(p => `${p.x},${p.y}`).join(' L ')}`}
               fill="none"
-              stroke="#3b82f6"
+              stroke="#9333ea"
               strokeWidth="6"
               strokeLinejoin="round"
               strokeLinecap="round"
@@ -197,13 +189,16 @@ export function StoreMap() {
               <g 
                 key={product.id} 
                 transform={`translate(${product.location.x}, ${product.location.y})`}
-                onClick={() => setSelectedProduct(product)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedProduct(product);
+                }}
                 className="cursor-pointer"
                 style={{ transition: 'all 0.3s ease' }}
               >
                 <circle 
                   cx="0" cy="0" r={isCurrentStop ? "16" : "14"} 
-                  fill={isCurrentStop ? '#22c55e' : '#1d4ed8'} 
+                  fill={isCurrentStop ? '#22c55e' : '#a855f7'} 
                   stroke="white" 
                   strokeWidth={isCurrentStop ? "3" : "2"}
                   className="drop-shadow-sm"
@@ -228,8 +223,8 @@ export function StoreMap() {
               className="pointer-events-none"
             >
               {/* User Location Halo */}
-              <circle cx="0" cy="0" r="24" fill="#3b82f6" opacity="0.2" className="animate-pulse" />
-              <circle cx="0" cy="0" r="8" fill="#3b82f6" stroke="white" strokeWidth="2" className="drop-shadow-md" />
+              <circle cx="0" cy="0" r="24" fill="#9333ea" opacity="0.2" className="animate-pulse" />
+              <circle cx="0" cy="0" r="8" fill="#9333ea" stroke="white" strokeWidth="2" className="drop-shadow-md" />
             </g>
           )}
 

@@ -1,53 +1,40 @@
-import React, { useState, useEffect } from 'react';
-import { Input } from '../../../components/ui/input';
-import { Card } from '../../../components/ui/card';
+import React, { useState } from 'react';
+import { Search, MapPin, Tag } from 'lucide-react';
 import { products } from '../../../data/products';
 import { useMapStore } from '../../../stores/mapStore';
 import { useShoppingListStore } from '../../../stores/shoppingListStore';
-import { Search, MapPin, Plus } from 'lucide-react';
-import { Badge } from '../../../components/ui/badge';
 import { Product } from '../../../types';
 
 export function ProductSearch() {
-  const { searchQuery, setSearchQuery, setSelectedProduct } = useMapStore();
+  const { searchQuery, setSearchQuery, setSelectedProduct, setActiveTab } = useMapStore();
   const { addItem, items } = useShoppingListStore();
-  const [results, setResults] = useState<Product[]>([]);
   const [isFocused, setIsFocused] = useState(false);
 
-  useEffect(() => {
-    if (!searchQuery.trim()) {
-      setResults([]);
-      return;
-    }
-    
-    const lowerQuery = searchQuery.toLowerCase();
-    const filtered = products.filter(p => 
-      p.name.toLowerCase().includes(lowerQuery) || 
-      p.brand.toLowerCase().includes(lowerQuery) ||
-      p.category.toLowerCase().includes(lowerQuery)
-    ).slice(0, 5); // Limit to 5 results for clean UI
-    
-    setResults(filtered);
-  }, [searchQuery]);
+  const results = searchQuery.trim() === '' 
+    ? [] 
+    : products.filter(p => 
+        p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+        p.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.brand.toLowerCase().includes(searchQuery.toLowerCase())
+      ).slice(0, 5); // Limit to 5 results for clean dropdown
 
   const handleSelectProduct = (product: Product) => {
     setSelectedProduct(product);
     setSearchQuery('');
-    setResults([]);
-  };
-
-  const handleAddToList = (e: React.MouseEvent, product: Product) => {
-    e.stopPropagation();
-    addItem(product);
+    setIsFocused(false);
+    setActiveTab('map');
   };
 
   return (
-    <div className="relative w-full max-w-md mx-auto z-50">
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-        <Input 
-          className="pl-9 pr-4 h-12 shadow-sm rounded-xl border-gray-200"
-          placeholder="Search products, brands, categories..."
+    <div className="relative w-full">
+      <div className={`relative flex items-center w-full h-11 rounded-full border-2 transition-colors bg-gray-50 ${isFocused ? 'border-purple-500 bg-white shadow-sm' : 'border-gray-200'}`}>
+        <div className="pl-4 pr-2 flex items-center justify-center text-gray-400">
+          <Search className="w-5 h-5" />
+        </div>
+        <input
+          type="text"
+          className="flex-1 h-full bg-transparent border-none outline-none text-sm text-gray-900 placeholder:text-gray-500"
+          placeholder="Search products, brands, or categories..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           onFocus={() => setIsFocused(true)}
@@ -55,42 +42,36 @@ export function ProductSearch() {
         />
       </div>
 
-      {isFocused && results.length > 0 && (
-        <Card className="absolute top-full mt-2 w-full max-h-96 overflow-y-auto shadow-lg flex flex-col p-1">
-          {results.map(product => {
-            const inList = items.some(i => i.id === product.id);
-            return (
-              <div 
-                key={product.id}
-                onClick={() => handleSelectProduct(product)}
-                className="flex items-center justify-between p-3 hover:bg-gray-50 cursor-pointer rounded-lg transition-colors border-b last:border-0 border-gray-100"
-              >
-                <div className="flex flex-col gap-1">
-                  <div className="font-medium text-sm text-gray-900">{product.name}</div>
-                  <div className="flex items-center gap-2 text-xs text-gray-500">
-                    <span className="font-semibold text-gray-700">₹{product.price}</span>
-                    <span>•</span>
-                    <span className="flex items-center gap-1">
-                      <MapPin className="h-3 w-3" />
-                      {product.location.aisle}
+      {/* Search Results Dropdown */}
+      {isFocused && searchQuery.length > 0 && (
+        <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden z-50">
+          {results.length > 0 ? (
+            <div className="py-2">
+              {results.map((product) => (
+                <div 
+                  key={product.id}
+                  onClick={() => handleSelectProduct(product)}
+                  className="px-4 py-3 hover:bg-purple-50 cursor-pointer flex items-center justify-between group transition-colors"
+                >
+                  <div className="flex flex-col">
+                    <span className="text-sm font-semibold text-gray-900 group-hover:text-purple-700">{product.name}</span>
+                    <span className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
+                      <Tag className="w-3 h-3" /> {product.brand} • {product.category}
                     </span>
-                    <span>•</span>
-                    <Badge variant={product.status === 'Available' ? 'secondary' : (product.status === 'Low Stock' ? 'outline' : 'destructive')} className="text-[10px] px-1.5 py-0">
-                      {product.status}
-                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                    <MapPin className="w-3 h-3" />
+                    {product.location.aisle}
                   </div>
                 </div>
-                <button
-                  onClick={(e) => handleAddToList(e, product)}
-                  disabled={inList}
-                  className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-full disabled:opacity-30 transition-colors"
-                >
-                  <Plus className="h-5 w-5" />
-                </button>
-              </div>
-            );
-          })}
-        </Card>
+              ))}
+            </div>
+          ) : (
+            <div className="px-4 py-6 text-center text-sm text-gray-500">
+              No products found for "{searchQuery}"
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

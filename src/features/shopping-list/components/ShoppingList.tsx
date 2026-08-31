@@ -1,17 +1,14 @@
 import React from 'react';
 import { useShoppingListStore } from '../../../stores/shoppingListStore';
 import { useMapStore } from '../../../stores/mapStore';
-import { Card, CardHeader, CardTitle, CardContent } from '../../../components/ui/card';
 import { Button } from '../../../components/ui/button';
 import { products } from '../../../data/products';
-import { navGraph } from '../../../data/navigationGraph';
-import { buildRoute } from '../../navigation/buildRoute';
-import { Trash2, CheckCircle2, Circle, Map as MapIcon, Route } from 'lucide-react';
+import { Trash2, CheckCircle2, Circle, Tag, X } from 'lucide-react';
 import { cn } from '../../../lib/utils';
 
-export function ShoppingList({ onClose, hideActionsOnMobile }: { onClose?: () => void, hideActionsOnMobile?: boolean }) {
+export function ShoppingList({ onClose, isMobile }: { onClose: () => void, isMobile?: boolean }) {
   const { items, collectedIds, toggleCollected, removeItem, clearList, setInitialDemoList } = useShoppingListStore();
-  const { setShowAllOnMap, setActiveRoute, setSelectedProduct } = useMapStore();
+  const { setSelectedProduct, setActiveTab } = useMapStore();
 
   const handleLoadDemo = () => {
     const demoSkus = ['GRO-001', 'SNA-001', 'CLN-001', 'DAI-001', 'PER-001', 'GRO-002', 'GRO-003', 'SNA-002'];
@@ -19,73 +16,78 @@ export function ShoppingList({ onClose, hideActionsOnMobile }: { onClose?: () =>
     setInitialDemoList(demoItems);
   };
 
-  const handleFindAll = () => {
-    setShowAllOnMap(true);
-    if (onClose) onClose();
-  };
-
-  const handleStartRoute = () => {
-    const uncollected = items.filter(i => !collectedIds.has(i.id));
-    if (uncollected.length === 0) return;
-    
-    const route = buildRoute(uncollected, navGraph);
-    if (route) {
-      setActiveRoute(route);
-      setShowAllOnMap(true); // Keep showing all on map so we see the pins too
-      if (onClose) onClose();
-    }
-  };
-
   return (
-    <Card className="flex flex-col h-full border-0 sm:border rounded-none sm:rounded-xl shadow-none sm:shadow-sm bg-gray-50/50 sm:bg-white">
-      <CardHeader className="pb-3 border-b border-gray-100 flex flex-row items-center justify-between">
+    <div className="flex flex-col h-full bg-white">
+      <div className="pb-3 pt-4 px-4 border-b border-gray-100 flex flex-row items-center justify-between shrink-0">
         <div>
-          <CardTitle className="text-lg">Shopping List</CardTitle>
-          <p className="text-xs text-gray-500 mt-1">{items.length} items</p>
+          <h2 className="text-lg font-bold text-gray-900">My Cart</h2>
+          <p className="text-xs text-gray-500 mt-1">{items.length} items to pick</p>
         </div>
-        {items.length > 0 && (
-          <Button variant="ghost" size="sm" onClick={clearList} className="text-red-500 hover:text-red-600 hover:bg-red-50">
-            Clear
-          </Button>
-        )}
-      </CardHeader>
+        <div className="flex items-center gap-1">
+          {items.length > 0 && (
+            <Button variant="ghost" size="sm" onClick={clearList} className="text-red-500 hover:text-red-600 hover:bg-red-50 px-2 h-8 text-xs">
+              Clear All
+            </Button>
+          )}
+          {isMobile && (
+            <button onClick={onClose} className="p-1.5 ml-2 text-gray-400 hover:text-gray-800 hover:bg-gray-100 rounded-full transition-colors">
+              <X className="w-5 h-5" />
+            </button>
+          )}
+        </div>
+      </div>
       
-      <CardContent className="flex-1 overflow-y-auto p-0">
+      <div className="flex-1 overflow-y-auto p-0 bg-gray-50/30">
         {items.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-48 text-gray-500 gap-3 px-6 text-center">
-            <p className="text-sm">Your list is empty.</p>
-            <Button variant="outline" size="sm" onClick={handleLoadDemo}>Load Demo List</Button>
+          <div className="flex flex-col items-center justify-center h-full min-h-[200px] text-gray-500 gap-3 px-6 text-center">
+            <div className="w-16 h-16 bg-purple-50 rounded-full flex items-center justify-center text-purple-300 mb-2">
+              <Tag className="w-8 h-8" />
+            </div>
+            <p className="text-sm font-medium text-gray-900">Your cart is empty!</p>
+            <p className="text-xs text-gray-500 mb-2">Add items from the store to build your route.</p>
+            <Button variant="outline" size="sm" className="border-purple-200 text-purple-700 hover:bg-purple-50" onClick={handleLoadDemo}>Load Demo Cart</Button>
           </div>
         ) : (
-          <div className="divide-y divide-gray-100">
+          <div className="divide-y divide-gray-100 pb-20">
             {items.map((item) => {
               const isCollected = collectedIds.has(item.id);
               return (
                 <div 
                   key={item.id} 
-                  className={cn("flex items-center gap-3 p-4 transition-colors hover:bg-gray-50 cursor-pointer", isCollected && "opacity-60 bg-gray-50/50")}
+                  className={cn("flex gap-3 p-4 bg-white transition-colors hover:bg-purple-50/50 cursor-pointer", isCollected && "opacity-60 bg-gray-50")}
                   onClick={() => {
                     setSelectedProduct(item);
-                    if (onClose) onClose();
+                    setActiveTab('map');
+                    if (isMobile) onClose();
                   }}
                 >
                   <button 
-                    className="flex-shrink-0 text-gray-400 hover:text-green-600 transition-colors"
+                    className="flex-shrink-0 text-gray-300 hover:text-purple-600 transition-colors mt-1"
                     onClick={(e) => {
                       e.stopPropagation();
                       toggleCollected(item.id);
                     }}
                   >
-                    {isCollected ? <CheckCircle2 className="h-5 w-5 text-green-500" /> : <Circle className="h-5 w-5" />}
+                    {isCollected ? <CheckCircle2 className="h-6 w-6 text-green-500" /> : <Circle className="h-6 w-6" />}
                   </button>
                   
-                  <div className="flex-1 min-w-0">
-                    <p className={cn("text-sm font-medium truncate", isCollected && "line-through text-gray-500")}>{item.name}</p>
-                    <p className="text-xs text-gray-500">{item.location.section} • {item.location.aisle}</p>
+                  <div className="flex-1 min-w-0 flex flex-col justify-center">
+                    <p className={cn("text-sm font-semibold text-gray-900 leading-tight", isCollected && "line-through text-gray-500")}>{item.name}</p>
+                    <div className="flex items-center gap-2 mt-1.5">
+                      <span className="text-[10px] font-medium px-2 py-0.5 bg-gray-100 text-gray-600 rounded-sm">
+                        {item.category}
+                      </span>
+                      <span className="text-[11px] text-gray-500 truncate">
+                        {item.location.section} • {item.location.aisle}
+                      </span>
+                    </div>
+                    <div className="mt-1 font-bold text-gray-900 text-sm">
+                      ₹{item.price}
+                    </div>
                   </div>
                   
                   <button 
-                    className="text-gray-300 hover:text-red-500 p-1"
+                    className="text-gray-300 hover:text-red-500 p-2 self-start rounded-full hover:bg-red-50 transition-colors"
                     onClick={(e) => {
                       e.stopPropagation();
                       removeItem(item.id);
@@ -98,18 +100,7 @@ export function ShoppingList({ onClose, hideActionsOnMobile }: { onClose?: () =>
             })}
           </div>
         )}
-      </CardContent>
-      
-      {items.length > 0 && (
-        <div className={cn("p-4 bg-white border-t border-gray-100 flex-col gap-2 rounded-b-xl flex", hideActionsOnMobile ? "hidden sm:flex" : "")}>
-          <Button variant="outline" className="w-full gap-2" onClick={handleFindAll}>
-            <MapIcon className="h-4 w-4" /> Find All on Map
-          </Button>
-          <Button className="w-full gap-2 bg-blue-600 hover:bg-blue-700 text-white" onClick={handleStartRoute}>
-            <Route className="h-4 w-4" /> Start Route
-          </Button>
-        </div>
-      )}
-    </Card>
+      </div>
+    </div>
   );
 }

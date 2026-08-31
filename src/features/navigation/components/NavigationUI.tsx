@@ -40,7 +40,6 @@ export function NavigationUI() {
   
   const handleNext = () => {
     if (currentStop.product) {
-      // Mark as collected when moving next
       toggleCollected(currentStop.product.id);
     }
     if (currentStopIndex < totalStops - 1) {
@@ -59,23 +58,23 @@ export function NavigationUI() {
   };
 
   return (
-    <Card className="absolute top-2 left-2 right-2 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:w-[340px] shadow-lg border-2 border-blue-500 z-50 overflow-hidden transition-all duration-300">
+    <Card className="absolute top-2 left-2 right-2 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:w-[340px] shadow-lg border-2 border-purple-500 z-50 overflow-hidden transition-all duration-300">
       <div 
-        className="bg-blue-600 text-white px-3 py-2 flex items-center justify-between cursor-pointer select-none"
+        className="bg-purple-600 text-white px-3 py-2 flex items-center justify-between cursor-pointer select-none"
         onClick={() => setIsMinimized(!isMinimized)}
       >
         <div className="flex items-center gap-2">
           <Navigation className="h-4 w-4" />
           <span className="font-semibold text-sm">Shopping Route</span>
-          {isMinimized && <span className="text-xs font-normal text-blue-200 ml-1">({currentStopIndex} of {totalStops - 1})</span>}
+          {isMinimized && <span className="text-xs font-normal text-purple-200 ml-1">({currentStopIndex} of {totalStops - 1})</span>}
         </div>
         <div className="flex items-center gap-1">
-          <button className="p-1 text-blue-100 hover:text-white transition-colors" title={isMinimized ? "Maximize" : "Minimize"}>
+          <button className="p-1 text-purple-100 hover:text-white transition-colors" title={isMinimized ? "Maximize" : "Minimize"}>
             {isMinimized ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
           </button>
           <button 
             onClick={(e) => { e.stopPropagation(); handleEnd(); }} 
-            className="p-1 text-blue-100 hover:text-red-300 transition-colors"
+            className="p-1 text-purple-100 hover:text-red-300 transition-colors"
             title="End Route"
           >
             <X className="h-4 w-4" />
@@ -92,7 +91,7 @@ export function NavigationUI() {
             </div>
             
             <div className="flex items-start gap-3">
-              <div className="mt-0.5 bg-blue-100 p-1.5 rounded-full text-blue-600 shrink-0">
+              <div className="mt-0.5 bg-purple-100 p-1.5 rounded-full text-purple-600 shrink-0">
                 {currentStop.type === 'entrance' ? <Navigation className="h-4 w-4" /> :
                  currentStop.type === 'checkout' ? <CheckCircle className="h-4 w-4" /> :
                  <span className="flex h-4 w-4 items-center justify-center font-bold text-xs">{currentStopIndex}</span>}
@@ -107,7 +106,7 @@ export function NavigationUI() {
                 
                 {currentStop.type === 'product' && currentStop.product && (
                   <div className="mt-0.5 text-xs text-gray-600">
-                    <span className="font-semibold text-blue-700">{currentStop.product.location.aisle}</span>
+                    <span className="font-semibold text-purple-700">{currentStop.product.location.aisle}</span>
                     <span className="mx-1.5 text-gray-400">•</span>
                     <span>Rack {currentStop.product.location.rack}</span>
                   </div>
@@ -125,8 +124,8 @@ export function NavigationUI() {
                   Finish <CheckCircle className="h-3 w-3 ml-1" />
                 </Button>
               ) : (
-                <Button className="flex-[2] bg-blue-600 hover:bg-blue-700 text-white h-8 text-xs font-semibold" onClick={handleNext}>
-                  {currentStopIndex === 0 ? "Start Route" : "Got it! Next"} <ChevronRight className="h-3 w-3 ml-1" />
+                <Button className="flex-[2] bg-purple-600 hover:bg-purple-700 text-white h-8 text-xs font-semibold" onClick={handleNext}>
+                  {currentStopIndex === 0 ? "Start Route" : "Next"} <ChevronRight className="h-3 w-3 ml-1" />
                 </Button>
               )}
             </div>

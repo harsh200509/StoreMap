@@ -2,6 +2,9 @@ import { create } from 'zustand';
 import { Product, RouteResult } from '../types';
 
 interface MapState {
+  activeTab: 'items' | 'map';
+  setActiveTab: (tab: 'items' | 'map') => void;
+
   searchQuery: string;
   setSearchQuery: (query: string) => void;
   
@@ -25,11 +28,14 @@ interface MapState {
 }
 
 export const useMapStore = create<MapState>((set) => ({
+  activeTab: 'items',
+  setActiveTab: (tab) => set({ activeTab: tab }),
+
   searchQuery: '',
   setSearchQuery: (query) => set({ searchQuery: query }),
   
   selectedProduct: null,
-  setSelectedProduct: (product) => set({ selectedProduct: product, showAllOnMap: false }),
+  setSelectedProduct: (product) => set({ selectedProduct: product }),
   
   showAllOnMap: false,
   setShowAllOnMap: (show) => set({ showAllOnMap: show, selectedProduct: null }),
@@ -51,4 +57,3 @@ export const useMapStore = create<MapState>((set) => ({
   isNavigatingToNext: false,
   setIsNavigatingToNext: (navigating) => set({ isNavigatingToNext: navigating }),
 }));
-

@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { ProductSearch } from './features/products/components/ProductSearch';
 import { ShoppingList } from './features/shopping-list/components/ShoppingList';
 import { StoreMap } from './features/store-map/components/StoreMap';
-import { NavigationUI } from './features/navigation/components/NavigationUI';
 import { ProductDetail } from './features/products/components/ProductDetail';
 import { Storefront } from './features/products/components/Storefront';
 import { MapPin, ShoppingBag, Map as MapIcon, Grid, Route } from 'lucide-react';
@@ -17,7 +16,7 @@ export default function App() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   
   const uncollectedCount = items.filter(i => !collectedIds.has(i.id)).length;
-  const showFloatingStart = !activeRoute && uncollectedCount > 0;
+  const showFloatingStart = uncollectedCount > 0 && (activeTab === 'items' || !activeRoute);
 
   const handleStartRoute = () => {
     const uncollected = items.filter(i => !collectedIds.has(i.id));
@@ -81,7 +80,6 @@ export default function App() {
           ) : (
             <>
               <StoreMap />
-              <NavigationUI />
               <ProductDetail />
             </>
           )}
@@ -95,7 +93,7 @@ export default function App() {
               className="pointer-events-auto flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white shadow-[0_8px_16px_rgba(147,51,234,0.3)] rounded-full px-6 py-3.5 font-bold text-sm transition-transform active:scale-95"
             >
               <Route className="h-5 w-5" />
-              Start Route ({uncollectedCount} {uncollectedCount === 1 ? 'item' : 'items'})
+              {activeRoute ? 'Update Route' : 'Start Route'} ({uncollectedCount})
             </button>
           </div>
         )}
@@ -134,7 +132,12 @@ export default function App() {
           onClick={() => setActiveTab('map')}
           className={`flex flex-col items-center justify-center w-full h-full ${activeTab === 'map' ? 'text-purple-600' : 'text-gray-500 hover:text-gray-900'}`}
         >
-          <MapIcon className="h-6 w-6 mb-0.5" />
+          <div className="relative">
+            <MapIcon className="h-6 w-6 mb-0.5" />
+            {uncollectedCount > 0 && activeTab === 'items' && (
+              <span className="absolute -top-1 -right-1 bg-purple-600 w-2.5 h-2.5 rounded-full border border-white"></span>
+            )}
+          </div>
           <span className="text-[11px] font-medium leading-none">Store Map</span>
         </button>
       </nav>

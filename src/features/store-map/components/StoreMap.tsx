@@ -2,6 +2,8 @@ import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { sections, aisles, ENTRANCE, CHECKOUT } from '../../../data/store';
 import { useMapStore } from '../../../stores/mapStore';
 import { useShoppingListStore } from '../../../stores/shoppingListStore';
+import { useRealLocation } from '../../../hooks/useRealLocation';
+import { LocateFixed, Locate } from 'lucide-react';
 
 export function StoreMap() {
   const { selectedProduct, showAllOnMap, activeRoute, currentStopIndex, setSelectedProduct, userLocation } = useMapStore();
@@ -9,12 +11,27 @@ export function StoreMap() {
   
   const activeAisle = selectedProduct?.location.aisle;
   
+  // GPS State
+  const [useRealGPS, setUseRealGPS] = useState(false);
+  const { error: gpsError, isTracking } = useRealLocation(useRealGPS);
+
   // Transform-based Pan and Zoom state for true mobile optimization
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
-  const isDragging = useRef(false);
-  const lastPos = useRef({ x: 0, y: 0 });
   const mapRef = useRef<HTMLDivElement>(null);
+  
+  // Multi-touch tracking
+  const pointers = useRef<Map<number, {x: number, y: number}>>(new Map());
+
+  // Auto-pan to follow user location when GPS is active
+  useEffect(() => {
+    if (useRealGPS && userLocation) {
+      setPan({
+        x: 500 - userLocation.x,
+        y: 400 - userLocation.y
+      });
+    }
+  }, [userLocation, useRealGPS]);
 
   // Set initial zoom and pan based on screen size to make map instantly readable
   useEffect(() => {
@@ -29,29 +46,49 @@ export function StoreMap() {
   }, []);
 
   const handlePointerDown = (e: React.PointerEvent) => {
-    isDragging.current = true;
-    lastPos.current = { x: e.clientX, y: e.clientY };
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (mapRef.current) {
       mapRef.current.setPointerCapture(e.pointerId);
     }
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
-    if (!isDragging.current) return;
-    const dx = e.clientX - lastPos.current.x;
-    const dy = e.clientY - lastPos.current.y;
+    if (!pointers.current.has(e.pointerId)) return;
     
-    // Using CSS transforms, the pan is exactly 1:1 with screen pixels
-    setPan(prev => ({ 
-      x: prev.x + dx / zoom, 
-      y: prev.y + dy / zoom 
-    }));
+    const activePointers = Array.from(pointers.current.entries());
+    // Get the old position for the pointer that just moved
+    const oldPointer = activePointers.find(p => p[0] === e.pointerId)?.[1];
+    if (!oldPointer) return;
+
+    if (pointers.current.size === 1) {
+      // Pan
+      const dx = e.clientX - oldPointer.x;
+      const dy = e.clientY - oldPointer.y;
+      
+      setPan(prev => ({ 
+        x: prev.x + dx / zoom, 
+        y: prev.y + dy / zoom 
+      }));
+    } else if (pointers.current.size === 2) {
+      // Pinch to zoom
+      const pts = Array.from(pointers.current.values());
+      const otherPointer = pts.find(p => p !== oldPointer)!;
+      
+      const oldDist = Math.hypot(oldPointer.x - otherPointer.x, oldPointer.y - otherPointer.y);
+      const newDist = Math.hypot(e.clientX - otherPointer.x, e.clientY - otherPointer.y);
+      
+      if (oldDist > 0) {
+        const scaleDiff = newDist / oldDist;
+        setZoom(z => Math.min(Math.max(z * scaleDiff, 0.4), 4));
+      }
+    }
     
-    lastPos.current = { x: e.clientX, y: e.clientY };
+    // Update the pointer position after calculations
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
   };
 
   const handlePointerUp = (e: React.PointerEvent) => {
-    isDragging.current = false;
+    pointers.current.delete(e.pointerId);
     if (mapRef.current) {
       mapRef.current.releasePointerCapture(e.pointerId);
     }
@@ -74,6 +111,44 @@ export function StoreMap() {
     return items.filter(item => !collectedIds.has(item.id));
   }, [showAllOnMap, activeRoute, items, collectedIds]);
 
+  const groupedMarkers = useMemo(() => {
+    const groups = new Map<string, typeof listMarkers>();
+    listMarkers.forEach(p => {
+      const key = `${p.location.x},${p.location.y}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(p);
+    });
+    return Array.from(groups.entries()).map(([key, prods]) => {
+      const [x, y] = key.split(',').map(Number);
+      return { x, y, products: prods };
+    });
+  }, [listMarkers]);
+
+  const displayPath = useMemo(() => {
+    if (!activeRoute) return null;
+    
+    // If we have a user location, we trim the path to start from the point closest to the user
+    // This creates the "line reduces as you walk" effect
+    if (userLocation && activeRoute.path.length > 1) {
+      let closestIdx = 0;
+      let minDistance = Infinity;
+      
+      for (let i = 0; i < activeRoute.path.length; i++) {
+        const p = activeRoute.path[i];
+        const d = Math.hypot(p.x - userLocation.x, p.y - userLocation.y);
+        if (d < minDistance) {
+          minDistance = d;
+          closestIdx = i;
+        }
+      }
+      
+      const trimmedPath = activeRoute.path.slice(closestIdx);
+      return [userLocation, ...trimmedPath];
+    }
+    
+    return activeRoute.path;
+  }, [activeRoute, userLocation]);
+
   return (
     <div 
       className="w-full h-full bg-gray-50 flex overflow-hidden relative touch-none cursor-grab active:cursor-grabbing"
@@ -82,8 +157,29 @@ export function StoreMap() {
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerLeave={handlePointerUp}
+      onPointerCancel={handlePointerUp}
       onWheel={handleWheel}
     >
+      {/* GPS Toggle Button */}
+      <div className="absolute top-4 right-4 z-10 flex flex-col gap-2 items-end">
+        {gpsError && useRealGPS && (
+          <div className="bg-red-50 text-red-600 text-[10px] px-2 py-1 rounded shadow-sm border border-red-100 max-w-[120px]">
+            {gpsError}
+          </div>
+        )}
+        <button
+          onClick={(e) => { e.stopPropagation(); setUseRealGPS(!useRealGPS); }}
+          className={`h-12 w-12 rounded-full shadow-md flex items-center justify-center transition-colors border ${
+            useRealGPS 
+              ? (isTracking ? 'bg-purple-100 border-purple-300 text-purple-700' : 'bg-yellow-50 border-yellow-300 text-yellow-600') 
+              : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+          }`}
+          title={useRealGPS ? "Disable GPS" : "Enable GPS Tracking"}
+        >
+          {useRealGPS ? <LocateFixed className="h-5 w-5" /> : <Locate className="h-5 w-5" />}
+        </button>
+      </div>
+
       {/* 
         This is the inner map container. 
         It has a fixed size matching the SVG's coordinate system (1000x800).
@@ -96,7 +192,7 @@ export function StoreMap() {
         style={{
           transform: `translate(calc(-50% + ${pan.x * zoom}px), calc(-50% + ${pan.y * zoom}px)) scale(${zoom})`,
           transformOrigin: 'center',
-          transition: isDragging.current ? 'none' : 'transform 0.1s ease-out',
+          transition: pointers.current.size > 0 ? 'none' : 'transform 0.1s ease-out',
           willChange: 'transform'
         }}
       >
@@ -160,9 +256,9 @@ export function StoreMap() {
           <text x={CHECKOUT.x} y={CHECKOUT.y + 24} textAnchor="middle" fill="white" fontSize="12" fontWeight="bold">Checkout</text>
 
           {/* Draw Route Path */}
-          {activeRoute && activeRoute.path.length > 1 && (
+          {displayPath && displayPath.length > 1 && (
             <path
-              d={`M ${activeRoute.path.map(p => `${p.x},${p.y}`).join(' L ')}`}
+              d={`M ${displayPath.map(p => `${p.x},${p.y}`).join(' L ')}`}
               fill="none"
               stroke="#9333ea"
               strokeWidth="6"
@@ -173,45 +269,48 @@ export function StoreMap() {
           )}
 
           {/* Draw Product Markers (Shopping List) */}
-          {(showAllOnMap || activeRoute) && listMarkers.map((product, idx) => {
-            let stopNumber = idx + 1;
+          {(showAllOnMap || activeRoute) && groupedMarkers.map((group, groupIdx) => {
             let isCurrentStop = false;
             
             if (activeRoute) {
-              const stopIdx = activeRoute.stops.findIndex(s => s.product?.id === product.id);
+              const stopIdx = activeRoute.stops.findIndex(s => s.product?.location.x === group.x && s.product?.location.y === group.y);
               if (stopIdx !== -1) {
-                stopNumber = stopIdx; // stop 0 is entrance
                 isCurrentStop = stopIdx === currentStopIndex;
               }
             }
 
+            const yOffset = -14 - ((group.products.length - 1) * 14);
+            const height = Math.max(28, group.products.length * 30);
+
             return (
               <g 
-                key={product.id} 
-                transform={`translate(${product.location.x}, ${product.location.y})`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setSelectedProduct(product);
-                }}
-                className="cursor-pointer"
+                key={`group-${groupIdx}`} 
+                transform={`translate(${group.x}, ${group.y})`}
                 style={{ transition: 'all 0.3s ease' }}
               >
                 <circle 
-                  cx="0" cy="0" r={isCurrentStop ? "16" : "14"} 
+                  cx="0" cy="0" r={isCurrentStop ? "10" : "8"} 
                   fill={isCurrentStop ? '#22c55e' : '#a855f7'} 
                   stroke="white" 
-                  strokeWidth={isCurrentStop ? "3" : "2"}
-                  className="drop-shadow-sm"
+                  strokeWidth="2"
+                  className="drop-shadow-sm pointer-events-none"
                 />
-                <text 
-                  x="0" y="4" 
-                  textAnchor="middle" 
-                  fill="white" 
-                  fontSize={isCurrentStop ? "13" : "12"} 
-                  fontWeight="bold"
-                >
-                  {stopNumber}
-                </text>
+                <foreignObject x="12" y={yOffset} width="200" height={height} className="overflow-visible pointer-events-none">
+                  <div className="flex flex-col gap-1 justify-center h-full">
+                    {group.products.map(product => (
+                      <div 
+                        key={product.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedProduct(product);
+                        }}
+                        className="pointer-events-auto cursor-pointer bg-white/95 backdrop-blur shadow-sm border border-gray-200 text-xs font-bold text-gray-800 px-2.5 py-1 rounded-full whitespace-nowrap w-fit hover:bg-purple-50 transition-colors"
+                      >
+                        {product.name}
+                      </div>
+                    ))}
+                  </div>
+                </foreignObject>
               </g>
             );
           })}
@@ -221,6 +320,7 @@ export function StoreMap() {
             <g 
               transform={`translate(${userLocation.x}, ${userLocation.y})`}
               className="pointer-events-none"
+              style={{ transition: 'transform 0.5s linear' }}
             >
               {/* User Location Halo */}
               <circle cx="0" cy="0" r="24" fill="#9333ea" opacity="0.2" className="animate-pulse" />

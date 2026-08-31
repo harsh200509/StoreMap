@@ -1,0 +1,113 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Admin {
+  id           Int      @id @default(autoincrement())
+  username     String   @unique
+  passwordHash String   @map("password_hash")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@map("admins")
+}
+
+model StoreSection {
+  id        String   @id @default(cuid())
+  name      String
+  x         Float
+  y         Float
+  width     Float
+  height    Float
+  color     String   @default("#f1f5f9")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  racks StoreRack[]
+
+  @@map("store_sections")
+}
+
+model StoreRack {
+  id          String        @id @default(cuid())
+  name        String
+  sectionId   String?       @map("section_id")
+  x           Float
+  y           Float
+  width       Float
+  height      Float
+  divisions   Int           @default(5)
+  orientation String        @default("vertical") // 'vertical' | 'horizontal'
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  section  StoreSection? @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  products Product[]
+
+  @@map("store_racks")
+}
+
+model Product {
+  id           String   @id @default(cuid())
+  name         String
+  brand        String?
+  category     String?
+  price        Float    @default(0)
+  sku          String?
+  status       String   @default("Available") // 'Available' | 'Low Stock' | 'Out of Stock'
+  imageUrl     String?  @map("image_url")
+  floor        Int      @default(1)
+  sectionName  String?  @map("section_name")
+  aisle        String?
+  rackId       String?  @map("rack_id")
+  rackDivision Int?     @map("rack_division") // 1-based slot index
+  locationX    Float?   @map("location_x")
+  locationY    Float?   @map("location_y")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  rack StoreRack? @relation(fields: [rackId], references: [id], onDelete: SetNull)
+
+  @@map("products")
+}
+
+model NavNode {
+  id    String @id
+  x     Float
+  y     Float
+  label String?
+  type  String @default("path") // 'path' | 'product' | 'entrance' | 'checkout'
+
+  fromEdges NavEdge[] @relation("from")
+  toEdges   NavEdge[] @relation("to")
+
+  @@map("nav_nodes")
+}
+
+model NavEdge {
+  id         Int    @id @default(autoincrement())
+  fromNodeId String @map("from_node_id")
+  toNodeId   String @map("to_node_id")
+  distance   Float
+
+  fromNode NavNode @relation("from", fields: [fromNodeId], references: [id], onDelete: Cascade)
+  toNode   NavNode @relation("to", fields: [toNodeId], references: [id], onDelete: Cascade)
+
+  @@unique([fromNodeId, toNodeId])
+  @@map("nav_edges")
+}
+
+model StoreConfig {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("store_config")
+}

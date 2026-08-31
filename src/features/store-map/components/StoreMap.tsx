@@ -108,8 +108,9 @@ export function StoreMap() {
 
   const listMarkers = useMemo(() => {
     if (!showAllOnMap && !activeRoute) return [];
-    return items.filter(item => !collectedIds.has(item.id));
-  }, [showAllOnMap, activeRoute, items, collectedIds]);
+    // Always return all items for the map. Collected items are greyed out, not removed.
+    return items;
+  }, [showAllOnMap, activeRoute, items]);
 
   const groupedMarkers = useMemo(() => {
     const groups = new Map<string, typeof listMarkers>();
@@ -192,7 +193,7 @@ export function StoreMap() {
         style={{
           transform: `translate(calc(-50% + ${pan.x * zoom}px), calc(-50% + ${pan.y * zoom}px)) scale(${zoom})`,
           transformOrigin: 'center',
-          transition: pointers.current.size > 0 ? 'none' : 'transform 0.1s ease-out',
+          transition: pointers.current.size > 0 ? 'none' : (useRealGPS ? 'transform 1s cubic-bezier(0.33, 1, 0.68, 1)' : 'transform 0.1s ease-out'),
           willChange: 'transform'
         }}
       >
@@ -281,6 +282,9 @@ export function StoreMap() {
 
             const yOffset = -14 - ((group.products.length - 1) * 14);
             const height = Math.max(28, group.products.length * 30);
+            
+            // Check if ALL products in this specific group stack are collected
+            const allCollected = group.products.every(p => collectedIds.has(p.id));
 
             return (
               <g 
@@ -289,26 +293,33 @@ export function StoreMap() {
                 style={{ transition: 'all 0.3s ease' }}
               >
                 <circle 
-                  cx="0" cy="0" r={isCurrentStop ? "10" : "8"} 
-                  fill={isCurrentStop ? '#22c55e' : '#a855f7'} 
+                  cx="0" cy="0" r={isCurrentStop && !allCollected ? "10" : "8"} 
+                  fill={allCollected ? '#d1d5db' : (isCurrentStop ? '#22c55e' : '#a855f7')} 
                   stroke="white" 
                   strokeWidth="2"
                   className="drop-shadow-sm pointer-events-none"
+                  style={{ transition: 'all 0.3s ease' }}
                 />
                 <foreignObject x="12" y={yOffset} width="200" height={height} className="overflow-visible pointer-events-none">
                   <div className="flex flex-col gap-1 justify-center h-full">
-                    {group.products.map(product => (
+                    {group.products.map(product => {
+                      const isCollected = collectedIds.has(product.id);
+                      return (
                       <div 
                         key={product.id}
                         onClick={(e) => {
                           e.stopPropagation();
                           setSelectedProduct(product);
                         }}
-                        className="pointer-events-auto cursor-pointer bg-white/95 backdrop-blur shadow-sm border border-gray-200 text-xs font-bold text-gray-800 px-2.5 py-1 rounded-full whitespace-nowrap w-fit hover:bg-purple-50 transition-colors"
+                        className={`pointer-events-auto cursor-pointer shadow-sm border px-2.5 py-1 rounded-full whitespace-nowrap w-fit transition-colors text-xs font-bold ${
+                          isCollected 
+                            ? 'bg-gray-100/90 border-gray-200 text-gray-400 line-through backdrop-blur hover:bg-gray-200/90' 
+                            : 'bg-white/95 border-gray-200 text-gray-800 backdrop-blur hover:bg-purple-50'
+                        }`}
                       >
                         {product.name}
                       </div>
-                    ))}
+                    )})}
                   </div>
                 </foreignObject>
               </g>
@@ -320,7 +331,7 @@ export function StoreMap() {
             <g 
               transform={`translate(${userLocation.x}, ${userLocation.y})`}
               className="pointer-events-none"
-              style={{ transition: 'transform 0.5s linear' }}
+              style={{ transition: 'transform 1s cubic-bezier(0.33, 1, 0.68, 1)' }}
             >
               {/* User Location Halo */}
               <circle cx="0" cy="0" r="24" fill="#9333ea" opacity="0.2" className="animate-pulse" />

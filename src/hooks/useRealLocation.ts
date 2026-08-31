@@ -30,6 +30,13 @@ export function useRealLocation(isActive: boolean) {
         setIsTracking(true);
         const { latitude, longitude } = position.coords;
 
+        // Ignore wildly inaccurate GPS spikes (e.g. > 30 meters off)
+        // This prevents the map from suddenly jumping 500+ pixels when GPS temporarily loses line of sight
+        if (position.coords.accuracy > 30 && initialGps.current) {
+          console.warn(`Ignored noisy GPS point (Accuracy: ${position.coords.accuracy}m)`);
+          return;
+        }
+
         if (!initialGps.current || !initialSvg.current) {
           // Lock the initial position to wherever the user currently is on the SVG map
           initialGps.current = { lat: latitude, lng: longitude };

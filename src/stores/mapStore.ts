@@ -9,7 +9,8 @@ interface MapState {
   setSearchQuery: (query: string) => void;
   
   selectedProduct: Product | null;
-  setSelectedProduct: (product: Product | null) => void;
+  selectedProductSource: 'list' | 'map';
+  setSelectedProduct: (product: Product | null, source?: 'list' | 'map') => void;
   
   showAllOnMap: boolean;
   setShowAllOnMap: (show: boolean) => void;
@@ -35,7 +36,8 @@ export const useMapStore = create<MapState>((set) => ({
   setSearchQuery: (query) => set({ searchQuery: query }),
   
   selectedProduct: null,
-  setSelectedProduct: (product) => set({ selectedProduct: product }),
+  selectedProductSource: 'list',
+  setSelectedProduct: (product, source = 'list') => set({ selectedProduct: product, selectedProductSource: source }),
   
   showAllOnMap: false,
   setShowAllOnMap: (show) => set({ showAllOnMap: show, selectedProduct: null }),

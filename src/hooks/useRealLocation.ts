@@ -1,14 +1,13 @@
 import { useEffect, useState, useRef } from 'react';
 import { useMapStore } from '../stores/mapStore';
 
-// 1 real-world meter = 15 pixels on the SVG map
-const SCALE = 15;
+// 1 real-world meter = 40 pixels on the SVG map (increased for better visual responsiveness)
+const SCALE = 40;
 
 export function useRealLocation(isActive: boolean) {
   const { userLocation, setUserLocation } = useMapStore();
   const [error, setError] = useState<string | null>(null);
   const [isTracking, setIsTracking] = useState(false);
-
   const initialGps = useRef<{ lat: number; lng: number } | null>(null);
   const initialSvg = useRef<{ x: number; y: number } | null>(null);
 
@@ -30,9 +29,9 @@ export function useRealLocation(isActive: boolean) {
         setIsTracking(true);
         const { latitude, longitude } = position.coords;
 
-        // Ignore wildly inaccurate GPS spikes (e.g. > 30 meters off)
-        // This prevents the map from suddenly jumping 500+ pixels when GPS temporarily loses line of sight
-        if (position.coords.accuracy > 30 && initialGps.current) {
+        // Loosened accuracy to 100m because indoor GPS is inherently noisy.
+        // Google Maps uses Wi-Fi/Bluetooth beacons for indoor, which we don't have in web.
+        if (position.coords.accuracy > 100 && initialGps.current) {
           console.warn(`Ignored noisy GPS point (Accuracy: ${position.coords.accuracy}m)`);
           return;
         }

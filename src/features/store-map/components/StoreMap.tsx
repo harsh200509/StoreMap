@@ -3,7 +3,7 @@ import { sections, aisles, ENTRANCE, CHECKOUT } from '../../../data/store';
 import { useMapStore } from '../../../stores/mapStore';
 import { useShoppingListStore } from '../../../stores/shoppingListStore';
 import { useRealLocation } from '../../../hooks/useRealLocation';
-import { LocateFixed, Locate } from 'lucide-react';
+import { LocateFixed, Locate, Play, Pause } from 'lucide-react';
 
 export function StoreMap() {
   const { selectedProduct, showAllOnMap, activeRoute, currentStopIndex, setSelectedProduct, userLocation } = useMapStore();
@@ -20,18 +20,54 @@ export function StoreMap() {
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const mapRef = useRef<HTMLDivElement>(null);
   
+  // Simulation State
+  const [isSimulating, setIsSimulating] = useState(false);
+  const { setUserLocation } = useMapStore();
+  
+  useEffect(() => {
+    if (!isSimulating || !activeRoute) return;
+    
+    let currentPos = useMapStore.getState().userLocation || { x: 500, y: 750 };
+    let targetIdx = 0;
+    
+    const interval = setInterval(() => {
+      const target = activeRoute.path[targetIdx];
+      if (!target) {
+        setIsSimulating(false);
+        return;
+      }
+      
+      const dx = target.x - currentPos.x;
+      const dy = target.y - currentPos.y;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      
+      if (dist < 5) {
+        targetIdx++;
+      } else {
+        const step = 8; // smooth step speed
+        currentPos = {
+          x: currentPos.x + (dx/dist) * step,
+          y: currentPos.y + (dy/dist) * step
+        };
+        setUserLocation(currentPos);
+      }
+    }, 50); // 20fps for smooth movement
+    
+    return () => clearInterval(interval);
+  }, [isSimulating, activeRoute, setUserLocation]);
+
   // Multi-touch tracking
   const pointers = useRef<Map<number, {x: number, y: number}>>(new Map());
 
-  // Auto-pan to follow user location when GPS is active
+  // Auto-pan to follow user location when GPS or Simulation is active
   useEffect(() => {
-    if (useRealGPS && userLocation) {
+    if ((useRealGPS || isSimulating) && userLocation) {
       setPan({
         x: 500 - userLocation.x,
         y: 400 - userLocation.y
       });
     }
-  }, [userLocation, useRealGPS]);
+  }, [userLocation, useRealGPS, isSimulating]);
 
   // Set initial zoom and pan based on screen size to make map instantly readable
   useEffect(() => {
@@ -161,7 +197,7 @@ export function StoreMap() {
       onPointerCancel={handlePointerUp}
       onWheel={handleWheel}
     >
-      {/* GPS Toggle Button */}
+      {/* GPS Toggle Button & Simulation */}
       <div className="absolute top-4 right-4 z-10 flex flex-col gap-2 items-end">
         {gpsError && useRealGPS && (
           <div className="bg-red-50 text-red-600 text-[10px] px-2 py-1 rounded shadow-sm border border-red-100 max-w-[120px]">
@@ -169,7 +205,7 @@ export function StoreMap() {
           </div>
         )}
         <button
-          onClick={(e) => { e.stopPropagation(); setUseRealGPS(!useRealGPS); }}
+          onClick={(e) => { e.stopPropagation(); setUseRealGPS(!useRealGPS); setIsSimulating(false); }}
           className={`h-12 w-12 rounded-full shadow-md flex items-center justify-center transition-colors border ${
             useRealGPS 
               ? (isTracking ? 'bg-purple-100 border-purple-300 text-purple-700' : 'bg-yellow-50 border-yellow-300 text-yellow-600') 
@@ -179,6 +215,20 @@ export function StoreMap() {
         >
           {useRealGPS ? <LocateFixed className="h-5 w-5" /> : <Locate className="h-5 w-5" />}
         </button>
+
+        {activeRoute && (
+          <button
+            onClick={(e) => { e.stopPropagation(); setIsSimulating(!isSimulating); setUseRealGPS(false); }}
+            className={`h-12 w-12 rounded-full shadow-md flex items-center justify-center transition-colors border ${
+              isSimulating 
+                ? 'bg-blue-100 border-blue-300 text-blue-700' 
+                : 'bg-white border-gray-200 text-blue-600 hover:bg-blue-50'
+            }`}
+            title={isSimulating ? "Stop Simulation" : "Simulate Walk"}
+          >
+            {isSimulating ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5 ml-1" />}
+          </button>
+        )}
       </div>
 
       {/* 
@@ -193,7 +243,7 @@ export function StoreMap() {
         style={{
           transform: `translate(calc(-50% + ${pan.x * zoom}px), calc(-50% + ${pan.y * zoom}px)) scale(${zoom})`,
           transformOrigin: 'center',
-          transition: pointers.current.size > 0 ? 'none' : (useRealGPS ? 'transform 1s cubic-bezier(0.33, 1, 0.68, 1)' : 'transform 0.1s ease-out'),
+          transition: pointers.current.size > 0 ? 'none' : ((useRealGPS || isSimulating) ? 'transform 1s cubic-bezier(0.33, 1, 0.68, 1)' : 'transform 0.1s ease-out'),
           willChange: 'transform'
         }}
       >
@@ -309,7 +359,7 @@ export function StoreMap() {
                         key={product.id}
                         onClick={(e) => {
                           e.stopPropagation();
-                          setSelectedProduct(product);
+                          setSelectedProduct(product, 'map');
                         }}
                         className={`pointer-events-auto cursor-pointer shadow-sm border px-2.5 py-1 rounded-full whitespace-nowrap w-fit transition-colors text-xs font-bold ${
                           isCollected 

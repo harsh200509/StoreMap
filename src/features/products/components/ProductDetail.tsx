@@ -6,7 +6,7 @@ import { Button } from '../../../components/ui/button';
 import { X, MapPin, Plus, Check } from 'lucide-react';
 
 export function ProductDetail() {
-  const { selectedProduct, setSelectedProduct } = useMapStore();
+  const { selectedProduct, setSelectedProduct, selectedProductSource } = useMapStore();
   const { items, addItem, collectedIds, toggleCollected } = useShoppingListStore();
 
   if (!selectedProduct) return null;
@@ -16,6 +16,12 @@ export function ProductDetail() {
 
   return (
     <Card className="absolute bottom-[84px] sm:bottom-6 left-2 right-2 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:w-[360px] shadow-2xl z-40 animate-in slide-in-from-bottom-4 border-none rounded-[24px] overflow-visible bg-white backdrop-blur-sm">
+      <button 
+        onClick={() => setSelectedProduct(null)} 
+        className="absolute -top-2 -right-1 bg-white border border-gray-100 text-gray-400 hover:text-gray-800 rounded-full p-1.5 shadow-md transition-colors z-50 active:scale-95"
+      >
+        <X className="h-4 w-4" strokeWidth={3} />
+      </button>
       <div className="p-4 flex items-center gap-3">
         <div className="flex-1 min-w-0">
           <h3 className="font-bold text-gray-900 text-base leading-tight truncate">{selectedProduct.name}</h3>
@@ -35,25 +41,21 @@ export function ProductDetail() {
           </div>
         </div>
         
-        <Button 
-          className={`shrink-0 h-14 w-14 rounded-full p-0 shadow-sm transition-all active:scale-95 ${
-            isCollected 
-              ? 'bg-purple-100 text-purple-700 hover:bg-purple-200' 
-              : (inList ? 'bg-purple-100 text-purple-700 hover:bg-purple-200' : 'bg-purple-50 text-purple-600 hover:bg-purple-100')
-          }`}
-          onClick={() => { 
-            if (inList) {
+        {inList && selectedProductSource !== 'map' && (
+          <Button 
+            className={`shrink-0 h-14 w-14 rounded-full p-0 shadow-sm transition-all active:scale-95 ${
+              isCollected 
+                ? 'bg-purple-100 text-purple-700 hover:bg-purple-200' 
+                : 'bg-purple-50 text-purple-600 hover:bg-purple-100'
+            }`}
+            onClick={() => { 
               toggleCollected(selectedProduct.id);
-              setSelectedProduct(null);
-            } else {
-              addItem(selectedProduct);
-              setSelectedProduct(null);
-            }
-          }}
-          title={isCollected ? "Collected" : (inList ? "Mark Collected" : "Add to List")}
-        >
-          <Check className="h-6 w-6" strokeWidth={2.5} />
-        </Button>
+            }}
+            title={isCollected ? "Collected" : "Mark Collected"}
+          >
+            <Check className="h-6 w-6" strokeWidth={2.5} />
+          </Button>
+        )}
       </div>
     </Card>
   );

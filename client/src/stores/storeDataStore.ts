@@ -28,6 +28,8 @@ interface StoreData {
   racks: MapRack[];
   entrance: { x: number; y: number };
   checkout: { x: number; y: number };
+  canvasWidth: number;
+  canvasHeight: number;
   loading: boolean;
   error: string | null;
   fetchData: () => Promise<void>;
@@ -38,6 +40,8 @@ export const useStoreData = create<StoreData>((set) => ({
   racks: [],
   entrance: { x: 100, y: 760 },
   checkout: { x: 800, y: 700 },
+  canvasWidth: 1000,
+  canvasHeight: 800,
   loading: true,
   error: null,
   fetchData: async () => {
@@ -50,6 +54,8 @@ export const useStoreData = create<StoreData>((set) => ({
         racks: data.racks || [],
         entrance: data.config?.entrance || { x: 100, y: 760 },
         checkout: data.config?.checkout || { x: 800, y: 700 },
+        canvasWidth: Number(data.config?.canvasWidth) || 1000,
+        canvasHeight: Number(data.config?.canvasHeight) || 800,
         loading: false,
       });
     } catch (err: any) {

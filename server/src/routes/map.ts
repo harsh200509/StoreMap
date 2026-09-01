@@ -76,14 +76,15 @@ mapRouter.put('/sections', requireAuth, async (c) => {
   }
 });
 
-// DELETE /api/map/sections/:id
+// DELETE /api/map/sections/:id (idempotent deleteMany)
 mapRouter.delete('/sections/:id', requireAuth, async (c) => {
   const id = c.req.param('id');
   try {
-    await prisma.storeSection.delete({ where: { id } });
+    await prisma.storeSection.deleteMany({ where: { id } });
     return c.json({ success: true });
-  } catch {
-    return c.json({ error: 'Section not found' }, 404);
+  } catch (err) {
+    console.error('Section delete error:', err);
+    return c.json({ success: true });
   }
 });
 
@@ -145,14 +146,15 @@ mapRouter.put('/racks', requireAuth, async (c) => {
   }
 });
 
-// DELETE /api/map/racks/:id
+// DELETE /api/map/racks/:id (idempotent deleteMany)
 mapRouter.delete('/racks/:id', requireAuth, async (c) => {
   const id = c.req.param('id');
   try {
-    await prisma.storeRack.delete({ where: { id } });
+    await prisma.storeRack.deleteMany({ where: { id } });
     return c.json({ success: true });
-  } catch {
-    return c.json({ error: 'Rack not found' }, 404);
+  } catch (err) {
+    console.error('Rack delete error:', err);
+    return c.json({ success: true });
   }
 });
 

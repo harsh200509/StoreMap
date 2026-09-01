@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useAdminStore } from '../stores/adminStore';
-import { Save, Trash2, Crosshair, Map as MapIcon, Grid, Layout, RotateCw, ZoomIn, ZoomOut, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Save, Trash2, Crosshair, Map as MapIcon, Grid, Layout, RotateCw, ZoomIn, ZoomOut, CheckCircle2, AlertCircle, Maximize2, Move } from 'lucide-react';
 import { API_BASE_URL } from '../lib/api';
 
 interface MapSection {
@@ -45,12 +45,19 @@ export default function MapEditor() {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [selectedItem, setSelectedItem] = useState<{ type: 'section' | 'rack' | 'entrance' | 'checkout'; id?: string } | null>(null);
+  const [showCanvasMenu, setShowCanvasMenu] = useState(false);
 
-  // Zoom and Pan
+  // Zoom and Drag
   const [zoom, setZoom] = useState(1);
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+
+  // Canvas Resize Dragging State
+  const [isResizingCanvas, setIsResizingCanvas] = useState<'right' | 'bottom' | 'corner' | null>(null);
+  const [resizeStart, setResizeStart] = useState<{ x: number; y: number; w: number; h: number }>({ x: 0, y: 0, w: 1000, h: 800 });
+
   const svgRef = useRef<SVGSVGElement>(null);
+  const canvasRef = useRef<HTMLDivElement>(null);
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type });
@@ -68,8 +75,8 @@ export default function MapEditor() {
             ...c,
             entrance: (data.config.entrance as { x: number; y: number }) || c.entrance,
             checkout: (data.config.checkout as { x: number; y: number }) || c.checkout,
-            canvasWidth: (data.config.canvasWidth as number) || 1000,
-            canvasHeight: (data.config.canvasHeight as number) || 800,
+            canvasWidth: Number(data.config.canvasWidth) || 1000,
+            canvasHeight: Number(data.config.canvasHeight) || 800,
           }));
         }
         setLoading(false);
@@ -103,7 +110,7 @@ export default function MapEditor() {
       });
       if (!rackRes.ok) throw new Error('Failed to save racks');
 
-      // 3. Save configs
+      // 3. Save configs (entrance, checkout, canvas dimensions)
       await fetch(`${API_BASE_URL}/map/config`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -125,7 +132,7 @@ export default function MapEditor() {
         body: JSON.stringify({ key: 'canvasHeight', value: config.canvasHeight || 800 }),
       });
 
-      showToast('Map saved successfully! Changes are live.');
+      showToast('Map & Canvas Size saved successfully!');
       fetchMapData();
     } catch (err: any) {
       showToast(err.message || 'Failed to save map', 'error');
@@ -190,7 +197,46 @@ export default function MapEditor() {
     (e.target as Element).releasePointerCapture(e.pointerId);
   };
 
-  // Dynamic canvas bounding box
+  // Canvas Resize Handlers (Drag bottom-right corner or edges to expand map)
+  const startCanvasResize = (e: React.PointerEvent, handle: 'right' | 'bottom' | 'corner') => {
+    e.stopPropagation();
+    setIsResizingCanvas(handle);
+    setResizeStart({
+      x: e.clientX,
+      y: e.clientY,
+      w: config.canvasWidth || 1000,
+      h: config.canvasHeight || 800,
+    });
+    (e.target as Element).setPointerCapture(e.pointerId);
+  };
+
+  const onCanvasResizeMove = (e: React.PointerEvent) => {
+    if (!isResizingCanvas) return;
+    const dx = (e.clientX - resizeStart.x) / zoom;
+    const dy = (e.clientY - resizeStart.y) / zoom;
+
+    let newW = resizeStart.w;
+    let newH = resizeStart.h;
+
+    if (isResizingCanvas === 'right' || isResizingCanvas === 'corner') {
+      newW = Math.max(600, Math.round((resizeStart.w + dx) / 50) * 50);
+    }
+    if (isResizingCanvas === 'bottom' || isResizingCanvas === 'corner') {
+      newH = Math.max(500, Math.round((resizeStart.h + dy) / 50) * 50);
+    }
+
+    setConfig((prev) => ({
+      ...prev,
+      canvasWidth: newW,
+      canvasHeight: newH,
+    }));
+  };
+
+  const onCanvasResizeUp = (e: React.PointerEvent) => {
+    setIsResizingCanvas(null);
+    (e.target as Element).releasePointerCapture(e.pointerId);
+  };
+
   const cWidth = config.canvasWidth || 1000;
   const cHeight = config.canvasHeight || 800;
 
@@ -263,19 +309,28 @@ export default function MapEditor() {
 
     if (selectedItem.type === 'section') {
       setSections(sections.filter((s) => s.id !== selectedItem.id));
-      await fetch(`${API_BASE_URL}/map/sections/${selectedItem.id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      if (selectedItem.id) {
+        await fetch(`${API_BASE_URL}/map/sections/${selectedItem.id}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      }
     } else {
       setRacks(racks.filter((r) => r.id !== selectedItem.id));
-      await fetch(`${API_BASE_URL}/map/racks/${selectedItem.id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      if (selectedItem.id) {
+        await fetch(`${API_BASE_URL}/map/racks/${selectedItem.id}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      }
     }
     setSelectedItem(null);
     showToast('Item deleted');
+  };
+
+  const applyCanvasPreset = (w: number, h: number) => {
+    setConfig((c) => ({ ...c, canvasWidth: w, canvasHeight: h }));
+    setShowCanvasMenu(false);
   };
 
   if (loading) return <div className="p-8 text-white">Loading Map...</div>;
@@ -287,67 +342,125 @@ export default function MapEditor() {
     <div className="flex h-screen bg-[#0f0f13] overflow-hidden text-white flex-col">
       {/* Toast Notification */}
       {toast && (
-        <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-xl text-sm font-semibold shadow-xl border flex items-center gap-2 animate-in fade-in slide-in-from-top-4 ${
-          toast.type === 'success' ? 'bg-purple-900/90 text-purple-200 border-purple-500/30 backdrop-blur' : 'bg-red-900/90 text-red-200 border-red-500/30 backdrop-blur'
-        }`}>
+        <div
+          className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-xl text-sm font-semibold shadow-xl border flex items-center gap-2 animate-in fade-in slide-in-from-top-4 ${
+            toast.type === 'success' ? 'bg-purple-900/90 text-purple-200 border-purple-500/30 backdrop-blur' : 'bg-red-900/90 text-red-200 border-red-500/30 backdrop-blur'
+          }`}
+        >
           {toast.type === 'success' ? <CheckCircle2 className="w-4 h-4 text-purple-400" /> : <AlertCircle className="w-4 h-4 text-red-400" />}
           {toast.message}
         </div>
       )}
 
       {/* Header */}
-      <header className="px-6 py-4 border-b border-white/10 flex items-center justify-between bg-black/20 shrink-0">
+      <header className="px-6 py-3 border-b border-white/10 flex items-center justify-between bg-black/20 shrink-0">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center">
+          <div className="w-9 h-9 rounded-xl bg-purple-500/20 flex items-center justify-center">
             <MapIcon className="w-5 h-5 text-purple-400" />
           </div>
           <div>
-            <h1 className="text-xl font-bold">Map Editor</h1>
-            <p className="text-xs text-slate-400">Drag to move · Click to select · Enlarge canvas as needed</p>
+            <h1 className="text-lg font-bold">Map Editor</h1>
+            <p className="text-xs text-slate-400">Drag items · Drag bottom-right corner to enlarge map</p>
           </div>
         </div>
 
-        {/* Zoom & Canvas controls */}
+        {/* Toolbar: Canvas Size, Zoom, Add, Save */}
         <div className="flex items-center gap-2">
-          <div className="flex items-center bg-white/5 border border-white/10 rounded-lg p-1 mr-2">
-            <button onClick={() => setZoom((z) => Math.max(0.4, z - 0.15))} className="p-1.5 hover:bg-white/10 rounded text-slate-300">
-              <ZoomOut className="w-4 h-4" />
+          {/* Canvas Size Selector */}
+          <div className="relative">
+            <button
+              onClick={() => setShowCanvasMenu(!showCanvasMenu)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-xs font-medium transition-colors border border-white/10 text-purple-300"
+              title="Change Map Dimensions"
+            >
+              <Maximize2 className="w-3.5 h-3.5" />
+              <span>Map: {cWidth} × {cHeight}px</span>
             </button>
-            <span className="text-xs px-2 text-slate-300 font-mono">{Math.round(zoom * 100)}%</span>
-            <button onClick={() => setZoom((z) => Math.min(2, z + 0.15))} className="p-1.5 hover:bg-white/10 rounded text-slate-300">
-              <ZoomIn className="w-4 h-4" />
+
+            {showCanvasMenu && (
+              <div className="absolute top-full right-0 mt-2 w-64 bg-[#181824] border border-white/15 rounded-xl shadow-2xl p-3 z-50 animate-in fade-in slide-in-from-top-2">
+                <div className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">Map Size Presets</div>
+                <div className="grid grid-cols-2 gap-1.5 mb-3">
+                  <button onClick={() => applyCanvasPreset(1000, 800)} className="px-2 py-1.5 bg-white/5 hover:bg-purple-600/30 rounded text-xs text-left border border-white/5">
+                    Standard (1000×800)
+                  </button>
+                  <button onClick={() => applyCanvasPreset(1500, 1000)} className="px-2 py-1.5 bg-white/5 hover:bg-purple-600/30 rounded text-xs text-left border border-white/5">
+                    Large (1500×1000)
+                  </button>
+                  <button onClick={() => applyCanvasPreset(2000, 1200)} className="px-2 py-1.5 bg-white/5 hover:bg-purple-600/30 rounded text-xs text-left border border-white/5">
+                    XL Store (2000×1200)
+                  </button>
+                  <button onClick={() => applyCanvasPreset(2500, 1500)} className="px-2 py-1.5 bg-white/5 hover:bg-purple-600/30 rounded text-xs text-left border border-white/5">
+                    Huge (2500×1500)
+                  </button>
+                </div>
+
+                <div className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">Custom Dimensions</div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[10px] text-slate-400 mb-0.5">Width (px)</label>
+                    <input
+                      type="number"
+                      value={config.canvasWidth || 1000}
+                      onChange={(e) => setConfig((c) => ({ ...c, canvasWidth: Math.max(500, Number(e.target.value)) }))}
+                      className="w-full bg-black/50 border border-white/10 rounded px-2 py-1 text-xs text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-400 mb-0.5">Height (px)</label>
+                    <input
+                      type="number"
+                      value={config.canvasHeight || 800}
+                      onChange={(e) => setConfig((c) => ({ ...c, canvasHeight: Math.max(400, Number(e.target.value)) }))}
+                      className="w-full bg-black/50 border border-white/10 rounded px-2 py-1 text-xs text-white"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Zoom controls */}
+          <div className="flex items-center bg-white/5 border border-white/10 rounded-lg p-0.5">
+            <button onClick={() => setZoom((z) => Math.max(0.3, z - 0.15))} className="p-1 hover:bg-white/10 rounded text-slate-300">
+              <ZoomOut className="w-3.5 h-3.5" />
+            </button>
+            <span className="text-xs px-1.5 text-slate-300 font-mono">{Math.round(zoom * 100)}%</span>
+            <button onClick={() => setZoom((z) => Math.min(2, z + 0.15))} className="p-1 hover:bg-white/10 rounded text-slate-300">
+              <ZoomIn className="w-3.5 h-3.5" />
             </button>
           </div>
 
-          <button onClick={addNewSection} className="flex items-center gap-2 px-3.5 py-2 bg-white/5 hover:bg-white/10 rounded-lg text-sm font-medium transition-colors border border-white/10">
-            <Layout className="w-4 h-4 text-purple-400" /> Add Section
+          <button onClick={addNewSection} className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-xs font-medium transition-colors border border-white/10">
+            <Layout className="w-3.5 h-3.5 text-purple-400" /> Add Section
           </button>
-          <button onClick={addNewRack} className="flex items-center gap-2 px-3.5 py-2 bg-white/5 hover:bg-white/10 rounded-lg text-sm font-medium transition-colors border border-white/10">
-            <Grid className="w-4 h-4 text-purple-400" /> Add Rack
+          <button onClick={addNewRack} className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-xs font-medium transition-colors border border-white/10">
+            <Grid className="w-3.5 h-3.5 text-purple-400" /> Add Rack
           </button>
-          <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 px-5 py-2 gradient-purple text-white rounded-lg text-sm font-medium transition-all hover:opacity-90 active:scale-95 disabled:opacity-50">
-            <Save className="w-4 h-4" /> {saving ? 'Saving...' : 'Save Map'}
+          <button onClick={handleSave} disabled={saving} className="flex items-center gap-1.5 px-4 py-1.5 gradient-purple text-white rounded-lg text-xs font-bold transition-all hover:opacity-90 active:scale-95 disabled:opacity-50">
+            <Save className="w-3.5 h-3.5" /> {saving ? 'Saving...' : 'Save Map'}
           </button>
         </div>
       </header>
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden" onClick={() => setShowCanvasMenu(false)}>
         {/* SVG Canvas Area */}
-        <div className="flex-1 overflow-auto bg-[#1a1a24] p-8 relative flex items-center justify-center">
+        <div className="flex-1 overflow-auto bg-[#1a1a24] p-10 relative flex items-center justify-center">
           <div
+            ref={canvasRef}
             style={{
               width: `${cWidth}px`,
               height: `${cHeight}px`,
               transform: `scale(${zoom})`,
               transformOrigin: 'center center',
-              transition: 'transform 0.1s ease-out',
+              transition: isResizingCanvas ? 'none' : 'transform 0.1s ease-out',
             }}
-            className="bg-white rounded-xl shadow-2xl shrink-0 overflow-hidden relative cursor-crosshair border border-slate-700"
+            className="bg-white rounded-xl shadow-2xl shrink-0 relative cursor-crosshair border-2 border-slate-600"
           >
             <svg
               ref={svgRef}
               viewBox={`0 0 ${cWidth} ${cHeight}`}
-              className="w-full h-full"
+              className="w-full h-full select-none"
               onPointerMove={onPointerMove}
               onPointerUp={onPointerUp}
               onPointerLeave={onPointerUp}
@@ -435,6 +548,35 @@ export default function MapEditor() {
                 <text x="0" y="22" textAnchor="middle" fill="white" fontSize="11" fontWeight="bold" className="pointer-events-none select-none">Checkout</text>
               </g>
             </svg>
+
+            {/* Interactive Corner Resize Handle (Drag to enlarge canvas!) */}
+            <div
+              onPointerDown={(e) => startCanvasResize(e, 'corner')}
+              onPointerMove={onCanvasResizeMove}
+              onPointerUp={onCanvasResizeUp}
+              className="absolute -bottom-3 -right-3 w-7 h-7 bg-purple-600 hover:bg-purple-500 border-2 border-white rounded-full shadow-lg cursor-nwse-resize flex items-center justify-center z-30 transition-transform active:scale-125"
+              title="Drag to resize map canvas"
+            >
+              <Move className="w-3.5 h-3.5 text-white" />
+            </div>
+
+            {/* Right edge handle */}
+            <div
+              onPointerDown={(e) => startCanvasResize(e, 'right')}
+              onPointerMove={onCanvasResizeMove}
+              onPointerUp={onCanvasResizeUp}
+              className="absolute top-1/2 -right-2 -translate-y-1/2 w-4 h-12 bg-purple-600/70 hover:bg-purple-600 border border-white rounded-full cursor-ew-resize z-30 flex items-center justify-center"
+              title="Drag right edge to widen map"
+            />
+
+            {/* Bottom edge handle */}
+            <div
+              onPointerDown={(e) => startCanvasResize(e, 'bottom')}
+              onPointerMove={onCanvasResizeMove}
+              onPointerUp={onCanvasResizeUp}
+              className="absolute -bottom-2 left-1/2 -translate-x-1/2 h-4 w-12 bg-purple-600/70 hover:bg-purple-600 border border-white rounded-full cursor-ns-resize z-30 flex items-center justify-center"
+              title="Drag bottom edge to lengthen map"
+            />
           </div>
         </div>
 
@@ -468,7 +610,9 @@ export default function MapEditor() {
                     />
                   </div>
                 </div>
-                <p className="text-[11px] text-slate-500 mt-2">Enlarge canvas dimensions to fit larger stores.</p>
+                <p className="text-[11px] text-slate-400 mt-2">
+                  💡 Tip: You can also drag the purple handle on the bottom-right corner of the map to resize!
+                </p>
               </div>
 
               <div className="text-center text-slate-500 mt-6">

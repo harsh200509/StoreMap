@@ -8,7 +8,7 @@ import { LocateFixed, Locate } from 'lucide-react';
 export function StoreMap() {
   const { selectedProduct, showAllOnMap, activeRoute, currentStopIndex, setSelectedProduct, userLocation } = useMapStore();
   const { items, collectedIds } = useShoppingListStore();
-  const { sections, racks: aisles, entrance: ENTRANCE, checkout: CHECKOUT, fetchData } = useStoreData();
+  const { sections, racks: aisles, entrance: ENTRANCE, checkout: CHECKOUT, canvasWidth = 1000, canvasHeight = 800, fetchData } = useStoreData();
 
   useEffect(() => {
     fetchData();
@@ -33,11 +33,11 @@ export function StoreMap() {
   useEffect(() => {
     if (useRealGPS && userLocation) {
       setPan({
-        x: 500 - userLocation.x,
-        y: 400 - userLocation.y,
+        x: (canvasWidth / 2) - userLocation.x,
+        y: (canvasHeight / 2) - userLocation.y,
       });
     }
-  }, [userLocation, useRealGPS]);
+  }, [userLocation, useRealGPS, canvasWidth, canvasHeight]);
 
   // Set initial zoom based on screen size
   useEffect(() => {
@@ -158,16 +158,18 @@ export function StoreMap() {
       </div>
 
       <div
-        className="absolute top-1/2 left-1/2 w-[1000px] h-[800px] bg-white sm:rounded-2xl shadow-sm border border-gray-200"
+        className="absolute top-1/2 left-1/2 bg-white sm:rounded-2xl shadow-sm border border-gray-200"
         style={{
+          width: `${canvasWidth}px`,
+          height: `${canvasHeight}px`,
           transform: `translate(calc(-50% + ${pan.x * zoom}px), calc(-50% + ${pan.y * zoom}px)) scale(${zoom})`,
           transformOrigin: 'center',
           transition: pointers.current.size > 0 ? 'none' : useRealGPS ? 'transform 1s cubic-bezier(0.33, 1, 0.68, 1)' : 'transform 0.1s ease-out',
           willChange: 'transform',
         }}
       >
-        <svg viewBox="0 0 1000 800" className="w-full h-full select-none">
-          <rect x="-1000" y="-1000" width="3000" height="3000" fill="#f8fafc" />
+        <svg viewBox={`0 0 ${canvasWidth} ${canvasHeight}`} className="w-full h-full select-none">
+          <rect x="-1000" y="-1000" width="4000" height="4000" fill="#f8fafc" />
 
           {/* Sections */}
           {sections.map((sec) => (

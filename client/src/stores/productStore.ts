@@ -2,30 +2,22 @@ import { create } from 'zustand';
 import { API_BASE_URL } from '../lib/api';
 import { Product } from '../types';
 
-const PAGE_SIZE = 20;
-
 interface ProductStore {
   products: Product[];
-  displayCount: number;
   loading: boolean;
-  loadingMore: boolean;
   error: string | null;
   hasFetched: boolean;
   fetchProducts: () => Promise<void>;
-  loadMore: () => void;
 }
 
 export const useProductStore = create<ProductStore>((set, get) => ({
   products: [],
-  displayCount: PAGE_SIZE,
   loading: false,
-  loadingMore: false,
   error: null,
   hasFetched: false,
 
   fetchProducts: async () => {
-    // Cache: don't re-fetch if we already have products
-    if (get().hasFetched) return;
+    if (get().hasFetched && get().products.length > 0) return;
 
     set({ loading: true });
     try {
@@ -48,18 +40,5 @@ export const useProductStore = create<ProductStore>((set, get) => ({
     } catch (err: any) {
       set({ error: err.message, loading: false });
     }
-  },
-
-  loadMore: () => {
-    const { displayCount, products, loadingMore } = get();
-    if (loadingMore || displayCount >= products.length) return;
-    set({ loadingMore: true });
-    // Simulate small async delay so the skeleton briefly shows
-    setTimeout(() => {
-      set((s) => ({
-        displayCount: Math.min(s.displayCount + PAGE_SIZE, s.products.length),
-        loadingMore: false,
-      }));
-    }, 300);
   },
 }));

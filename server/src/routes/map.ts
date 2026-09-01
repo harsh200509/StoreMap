@@ -19,9 +19,9 @@ mapRouter.get('/', async (c) => {
     }
 
     return c.json({ sections, racks, config: configMap });
-  } catch (err) {
-    console.error('Map fetch error:', err);
-    return c.json({ error: 'Failed to load map data' }, 500);
+  } catch (err: any) {
+    console.error('Map fetch error:', err?.message || err);
+    return c.json({ error: 'Failed to load map data', details: err?.message }, 500);
   }
 });
 
@@ -45,7 +45,8 @@ mapRouter.put('/sections', requireAuth, async (c) => {
       return c.json({ error: 'sections array required' }, 400);
     }
 
-    const result = await prisma.$transaction(
+    // Use Promise.all instead of $transaction for Neon HTTP driver compatibility
+    const result = await Promise.all(
       sections.map((s) =>
         prisma.storeSection.upsert({
           where: { id: s.id },
@@ -70,9 +71,9 @@ mapRouter.put('/sections', requireAuth, async (c) => {
       )
     );
     return c.json({ success: true, sections: result });
-  } catch (err) {
-    console.error('Section upsert error:', err);
-    return c.json({ error: 'Failed to save sections' }, 500);
+  } catch (err: any) {
+    console.error('Section upsert error:', err?.message || err);
+    return c.json({ error: 'Failed to save sections', details: err?.message }, 500);
   }
 });
 
@@ -110,7 +111,8 @@ mapRouter.put('/racks', requireAuth, async (c) => {
       return c.json({ error: 'racks array required' }, 400);
     }
 
-    const result = await prisma.$transaction(
+    // Use Promise.all instead of $transaction for Neon HTTP driver compatibility
+    const result = await Promise.all(
       racks.map((r) => {
         const secId = r.sectionId && r.sectionId.trim() !== '' ? r.sectionId.trim() : null;
         return prisma.storeRack.upsert({
@@ -140,9 +142,9 @@ mapRouter.put('/racks', requireAuth, async (c) => {
       })
     );
     return c.json({ success: true, racks: result });
-  } catch (err) {
-    console.error('Rack upsert error:', err);
-    return c.json({ error: 'Failed to save racks' }, 500);
+  } catch (err: any) {
+    console.error('Rack upsert error:', err?.message || err);
+    return c.json({ error: 'Failed to save racks', details: err?.message }, 500);
   }
 });
 
@@ -172,9 +174,9 @@ mapRouter.put('/config', requireAuth, async (c) => {
       create: { key, value },
     });
     return c.json(result);
-  } catch (err) {
-    console.error('Config update error:', err);
-    return c.json({ error: 'Failed to update config' }, 500);
+  } catch (err: any) {
+    console.error('Config update error:', err?.message || err);
+    return c.json({ error: 'Failed to update config', details: err?.message }, 500);
   }
 });
 

@@ -39,6 +39,7 @@ export function useRealLocation(isActive: boolean) {
   const { userLocation, setUserLocation } = useMapStore();
   const [error, setError] = useState<string | null>(null);
   const [isTracking, setIsTracking] = useState(false);
+  const [accuracy, setAccuracy] = useState<number | null>(null);
   const initialGps = useRef<{ lat: number; lng: number } | null>(null);
   const initialSvg = useRef<{ x: number; y: number } | null>(null);
   
@@ -49,6 +50,7 @@ export function useRealLocation(isActive: boolean) {
   useEffect(() => {
     if (!isActive) {
       setIsTracking(false);
+      setAccuracy(null);
       initialGps.current = null;
       initialSvg.current = null;
       kfX.current = new KalmanFilter(0.005, 0.5);
@@ -64,11 +66,12 @@ export function useRealLocation(isActive: boolean) {
     const watchId = navigator.geolocation.watchPosition(
       (position) => {
         setIsTracking(true);
-        const { latitude, longitude } = position.coords;
+        const { latitude, longitude, accuracy: posAccuracy } = position.coords;
+        setAccuracy(posAccuracy);
 
         // Ignore highly inaccurate readings, but allow up to 60m since indoors is noisy
-        if (position.coords.accuracy > 60 && initialGps.current) {
-          console.warn(`Ignored noisy GPS point (Accuracy: ${position.coords.accuracy}m)`);
+        if (posAccuracy > 60 && initialGps.current) {
+          console.warn(`Ignored noisy GPS point (Accuracy: ${posAccuracy}m)`);
           return;
         }
 
@@ -120,12 +123,12 @@ export function useRealLocation(isActive: boolean) {
       {
         enableHighAccuracy: true,
         maximumAge: 0,
-        timeout: 5000
+        timeout: 15000
       }
     );
 
     return () => navigator.geolocation.clearWatch(watchId);
   }, [isActive, setUserLocation]);
 
-  return { error, isTracking };
+  return { error, isTracking, accuracy };
 }

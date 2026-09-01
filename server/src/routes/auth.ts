@@ -38,9 +38,9 @@ authRouter.post('/login', async (c) => {
     });
 
     return c.json({ success: true, username: admin.username, token });
-  } catch (err) {
+  } catch (err: any) {
     console.error('Login error:', err);
-    return c.json({ error: 'Internal server error' }, 500);
+    return c.json({ error: err?.message || 'Internal server error' }, 500);
   }
 });
 

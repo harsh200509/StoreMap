@@ -8,16 +8,28 @@ import uploadRouter from './routes/upload';
 
 const app = new Hono();
 
-// ── CORS ───────────────────────────────────────────────────────────────────────
+// ── Global Error & CORS Handling ───────────────────────────────────────────────
 app.use(
   '*',
   cors({
     origin: (origin) => origin || '*',
     credentials: true,
     allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowHeaders: ['Content-Type', 'Authorization'],
+    allowHeaders: ['Content-Type', 'Authorization', 'Cookie'],
+    exposeHeaders: ['Set-Cookie'],
   })
 );
+
+app.onError((err, c) => {
+  console.error('Unhandled API Error:', err);
+  return c.json(
+    {
+      error: err.message || 'Internal server error',
+      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
+    },
+    500
+  );
+});
 
 // ── API Routes ──────────────────────────────────────────────────────────────────
 app.route('/api/auth', authRouter);

@@ -50,14 +50,22 @@ mapRouter.put('/sections', requireAuth, async (c) => {
         prisma.storeSection.upsert({
           where: { id: s.id },
           update: {
-            name: s.name,
-            x: s.x,
-            y: s.y,
-            width: s.width,
-            height: s.height,
-            color: s.color,
+            name: s.name || 'Section',
+            x: Number(s.x) || 0,
+            y: Number(s.y) || 0,
+            width: Number(s.width) || 100,
+            height: Number(s.height) || 100,
+            color: s.color || '#f1f5f9',
           },
-          create: s,
+          create: {
+            id: s.id,
+            name: s.name || 'Section',
+            x: Number(s.x) || 0,
+            y: Number(s.y) || 0,
+            width: Number(s.width) || 100,
+            height: Number(s.height) || 100,
+            color: s.color || '#f1f5f9',
+          },
         })
       )
     );
@@ -102,32 +110,33 @@ mapRouter.put('/racks', requireAuth, async (c) => {
     }
 
     const result = await prisma.$transaction(
-      racks.map((r) =>
-        prisma.storeRack.upsert({
+      racks.map((r) => {
+        const secId = r.sectionId && r.sectionId.trim() !== '' ? r.sectionId.trim() : null;
+        return prisma.storeRack.upsert({
           where: { id: r.id },
           update: {
-            name: r.name,
-            sectionId: r.sectionId,
-            x: r.x,
-            y: r.y,
-            width: r.width,
-            height: r.height,
-            divisions: r.divisions,
-            orientation: r.orientation,
+            name: r.name || 'Rack',
+            sectionId: secId,
+            x: Number(r.x) || 0,
+            y: Number(r.y) || 0,
+            width: Number(r.width) || 40,
+            height: Number(r.height) || 120,
+            divisions: Number(r.divisions) || 5,
+            orientation: r.orientation || 'vertical',
           },
           create: {
             id: r.id,
-            name: r.name,
-            sectionId: r.sectionId,
-            x: r.x,
-            y: r.y,
-            width: r.width,
-            height: r.height,
-            divisions: r.divisions ?? 5,
-            orientation: r.orientation ?? 'vertical',
+            name: r.name || 'Rack',
+            sectionId: secId,
+            x: Number(r.x) || 0,
+            y: Number(r.y) || 0,
+            width: Number(r.width) || 40,
+            height: Number(r.height) || 120,
+            divisions: Number(r.divisions) || 5,
+            orientation: r.orientation || 'vertical',
           },
-        })
-      )
+        });
+      })
     );
     return c.json({ success: true, racks: result });
   } catch (err) {

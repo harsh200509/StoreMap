@@ -9,8 +9,8 @@ interface MapState {
   setSearchQuery: (query: string) => void;
   
   selectedProduct: Product | null;
-  selectedProductSource: 'list' | 'map';
-  setSelectedProduct: (product: Product | null, source?: 'list' | 'map') => void;
+  selectedProductSource: 'list' | 'map' | 'search';
+  setSelectedProduct: (product: Product | null, source?: 'list' | 'map' | 'search') => void;
   
   showAllOnMap: boolean;
   setShowAllOnMap: (show: boolean) => void;

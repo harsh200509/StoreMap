@@ -111,10 +111,17 @@ mapRouter.put('/racks', requireAuth, async (c) => {
       return c.json({ error: 'racks array required' }, 400);
     }
 
+    // Query all valid section IDs to prevent Foreign Key constraint violations
+    const existingSections = await prisma.storeSection.findMany({ select: { id: true } });
+    const validSectionIds = new Set(existingSections.map((s) => s.id));
+
     // Use Promise.all instead of $transaction for Neon HTTP driver compatibility
     const result = await Promise.all(
       racks.map((r) => {
-        const secId = r.sectionId && r.sectionId.trim() !== '' ? r.sectionId.trim() : null;
+        const rawSecId = r.sectionId && r.sectionId.trim() !== '' ? r.sectionId.trim() : null;
+        // If the section doesn't exist in the database, safely set to null
+        const secId = rawSecId && validSectionIds.has(rawSecId) ? rawSecId : null;
+
         return prisma.storeRack.upsert({
           where: { id: r.id },
           update: {

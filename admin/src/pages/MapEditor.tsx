@@ -315,6 +315,7 @@ export default function MapEditor() {
 
     if (selectedItem.type === 'section') {
       setSections(sections.filter((s) => s.id !== selectedItem.id));
+      setRacks((prev) => prev.map((r) => (r.sectionId === selectedItem.id ? { ...r, sectionId: '' } : r)));
       if (selectedItem.id) {
         await fetch(`${API_BASE_URL}/map/sections/${selectedItem.id}`, {
           method: 'DELETE',

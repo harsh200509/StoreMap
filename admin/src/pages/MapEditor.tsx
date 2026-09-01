@@ -100,7 +100,10 @@ export default function MapEditor() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ sections }),
       });
-      if (!secRes.ok) throw new Error('Failed to save sections');
+      if (!secRes.ok) {
+        const errData = await secRes.json().catch(() => ({}));
+        throw new Error(errData.details || errData.error || 'Failed to save sections');
+      }
 
       // 2. Save racks
       const rackRes = await fetch(`${API_BASE_URL}/map/racks`, {
@@ -108,7 +111,10 @@ export default function MapEditor() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ racks }),
       });
-      if (!rackRes.ok) throw new Error('Failed to save racks');
+      if (!rackRes.ok) {
+        const errData = await rackRes.json().catch(() => ({}));
+        throw new Error(errData.details || errData.error || 'Failed to save racks');
+      }
 
       // 3. Save configs (entrance, checkout, canvas dimensions)
       await fetch(`${API_BASE_URL}/map/config`, {
